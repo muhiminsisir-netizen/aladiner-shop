@@ -1,0 +1,16 @@
+/* variants.css : size selector, size chart, focused product header */
+body.pdp #cats{display:none}
+.vsel{margin:14px 0}.vsel small{margin-left:6px}
+.sizes{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.size{min-width:48px;padding:10px 14px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface);font-weight:700;transition:.2s}
+.size:hover:not(:disabled){border-color:var(--primary)}
+.size.on{border-color:var(--primary);background:var(--primary);color:#fff;transform:translateY(-1px)}
+.size:disabled{opacity:.4;text-decoration:line-through;cursor:not-allowed}
+.sizes.shake{animation:shk .35s}
+@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.sizechart{margin:16px 0}.sizechart h3{margin:0 0 8px}
+.sizechart .tw{overflow-x:auto;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.sizechart table{width:100%;border-collapse:collapse;font-size:14px}
+.sizechart th{background:var(--surface2);text-align:left}.sizechart th,.sizechart td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.sizechart tr:last-child td{border-bottom:0}
+@media(prefers-reduced-motion:reduce){.sizes.shake{animation:none}}

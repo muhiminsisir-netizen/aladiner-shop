@@ -1,0 +1,80 @@
+/* ===== theme.css : palette layer. extra.css er PORE load hobe ===== */
+/* 8 ta base color (c-*) theke baki shob toiri hoy. Advanced override (o-*) thakle seta age boshe. */
+:root{
+ --c-deep:#0B2A5B;--c-forest:#1D4ED8;--c-sage:#3B82F6;--c-light:#BFDBFE;
+ --c-brown:#475569;--c-tan:#94A3B8;--c-cream:#DBEAFE;--c-gold:#F59E0B;
+ --bg:var(--o-bg,color-mix(in srgb,var(--c-cream) 38%,white));
+ --surface:var(--o-surface,color-mix(in srgb,var(--c-cream) 14%,white));
+ --surface2:color-mix(in srgb,var(--c-cream) 55%,white);
+ --text:var(--o-text,color-mix(in srgb,var(--c-deep) 72%,black));
+ --muted:var(--o-muted,var(--c-brown));
+ --border:color-mix(in srgb,var(--c-tan) 30%,transparent);
+ --primary:var(--o-primary,var(--c-forest));
+ --accent:var(--o-accent,var(--c-gold));
+ --ok:#1f9d6b;--warn:#d97706;--danger:var(--o-danger,#dc2626);
+ --glass:color-mix(in srgb,var(--surface) 84%,transparent);
+ --grad:linear-gradient(135deg,var(--o-primary,var(--c-deep)),var(--o-primary,var(--c-forest)) 60%,var(--o-primary,var(--c-sage)));
+ --shadow:0 1px 2px rgba(14,30,60,.05),0 6px 18px rgba(14,30,60,.07);
+ --shadow2:0 14px 34px color-mix(in srgb,var(--c-forest) 22%,transparent)}
+[data-theme=dark]{
+ --bg:color-mix(in srgb,var(--c-deep) 38%,black);
+ --surface:color-mix(in srgb,var(--c-deep) 72%,black);
+ --surface2:var(--c-deep);
+ --text:color-mix(in srgb,var(--c-cream) 75%,white);
+ --muted:color-mix(in srgb,var(--c-light) 72%,#999);
+ --border:color-mix(in srgb,var(--c-light) 16%,transparent);
+ --primary:var(--o-primary,var(--c-sage));
+ --grad:linear-gradient(135deg,var(--o-primary,var(--c-forest)),var(--o-primary,var(--c-sage)));
+ --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+ --shadow2:0 14px 34px rgba(0,0,0,.45)}
+
+body::before{background:radial-gradient(600px 400px at 8% -5%,color-mix(in srgb,var(--c-light) 30%,transparent),transparent),radial-gradient(500px 400px at 100% 8%,color-mix(in srgb,var(--c-gold) 14%,transparent),transparent)}
+:focus-visible{outline-color:color-mix(in srgb,var(--primary) 55%,transparent)}
+input:focus,select:focus,textarea:focus,.search input:focus{border-color:var(--primary);box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 16%,transparent)}
+select:not([multiple]){box-shadow:0 2px 8px rgba(14,30,60,.06)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--primary) 45%,transparent)}50%{box-shadow:0 0 0 8px transparent}}
+
+/* announcement bar */
+#announce{background:var(--o-ann-bg,var(--c-deep));color:var(--o-ann-tx,var(--c-gold));border-bottom:0;font-weight:600}
+#announce button{color:var(--o-ann-tx,var(--c-gold))}
+
+/* buttons */
+.btn{box-shadow:0 4px 12px color-mix(in srgb,var(--primary) 25%,transparent)}
+.btn:hover{box-shadow:0 8px 18px color-mix(in srgb,var(--primary) 32%,transparent)}
+.btn.ghost{box-shadow:none}
+.qadd{box-shadow:none}
+.bnav a.on{background:color-mix(in srgb,var(--primary) 12%,transparent)}
+.pay.on{background:color-mix(in srgb,var(--primary) 9%,transparent)}
+
+/* badges, stars, cart count */
+.bd{background:var(--accent);color:var(--c-deep)}
+.bd.red{background:var(--danger);color:#fff}
+.bd.warn{background:var(--warn);color:#fff}
+.nb{background:var(--accent);color:var(--c-deep)}
+.stars,.sp5 button.on{color:var(--accent)}
+
+/* hero + categories */
+.hero{background:linear-gradient(135deg,color-mix(in srgb,var(--c-light) 35%,transparent),color-mix(in srgb,var(--c-gold) 16%,transparent))}
+.f{background:linear-gradient(135deg,var(--c-forest),var(--c-sage))}
+.o1{background:radial-gradient(circle at 30% 30%,#fff,var(--c-gold))}
+.o2{background:radial-gradient(circle at 30% 30%,#fff,var(--c-sage))}
+.cat3d span{box-shadow:0 8px 18px color-mix(in srgb,var(--c-forest) 28%,transparent)}
+.cat3d:nth-child(4n+1) span{background:linear-gradient(135deg,var(--c-forest),var(--c-sage))}
+.cat3d:nth-child(4n+2) span{background:linear-gradient(135deg,var(--c-deep),var(--c-forest))}
+.cat3d:nth-child(4n+3) span{background:linear-gradient(135deg,var(--c-brown),var(--c-tan))}
+.cat3d:nth-child(4n+4) span{background:linear-gradient(135deg,var(--c-sage),var(--c-forest))}
+
+/* toast */
+.toast{background:var(--c-deep);color:#fff}.toast.err{background:#991b1b}.toast a{color:var(--c-gold)}
+
+/* footer */
+footer{background:var(--o-foot-bg,var(--c-deep));border-top:0}
+.fw h4{color:var(--accent)}
+.fw a,.fw span,.fw p{color:var(--o-foot-tx,color-mix(in srgb,var(--c-cream) 80%,transparent))}
+.fw a:hover{color:var(--accent)}
+.fw .logo{background:none;color:var(--accent)}
+.copy{color:var(--o-foot-tx,color-mix(in srgb,var(--c-cream) 65%,transparent));border-top-color:rgba(255,255,255,.12)}
+
+@media(max-width:899px){
+ body.co #po{box-shadow:0 10px 30px color-mix(in srgb,var(--primary) 40%,transparent)}
+}

@@ -8,8 +8,21 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 
+// Optional local .env support. Existing process environment always takes precedence.
+const envFile = path.join(__dirname, '.env');
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!m || Object.prototype.hasOwnProperty.call(process.env, m[1])) continue;
+    let value = m[2].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    else value = value.replace(/\s+#.*$/, '').trim();
+    process.env[m[1]] = value;
+  }
+}
+
 fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
-const db = new Database(path.join(__dirname, 'shop.db'));
+const db = new Database(process.env.DB_PATH || path.join(__dirname, 'shop.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.exec(`
@@ -34,24 +47,26 @@ addCol('orders', 'note', 'TEXT');
 addCol('orders', 'area', 'TEXT');
 addCol('orders', 'payment_status', "TEXT DEFAULT 'Unpaid'");
 addCol('orders', 'trx', 'TEXT');
+addCol('orders', 'email', 'TEXT');
 db.exec('CREATE INDEX IF NOT EXISTS ix_orders_phone ON orders(phone)');
 
 const DEF = {
   store_name: 'My Shop', announcement: 'Cash on Delivery available across Bangladesh',
   ship_dhaka: '60', ship_outside: '120', free_ship: '0',
   phone: '', whatsapp: '', facebook: '', instagram: '', address: '', hours: '',
-  bkash: '', nagad: '', pay_note: 'Send Money to the number above, then enter your Transaction ID at checkout.',
+  bkash: '', nagad: '', rocket: '', bkash_enabled: '', nagad_enabled: '', rocket_enabled: '', pay_note: 'Send Money to the number above, then enter your Transaction ID at checkout.',
   about: 'Welcome to our shop. Edit this text from Admin > Settings.',
   shipping_policy: '', return_policy: '', privacy: '', terms: ''
 };
+Object.assign(DEF, { c_deep: '#0B2A5B', c_forest: '#1D4ED8', c_sage: '#3B82F6', c_light: '#BFDBFE', c_brown: '#475569', c_tan: '#94A3B8', c_cream: '#DBEAFE', c_gold: '#F59E0B', o_bg: '', o_surface: '', o_text: '', o_muted: '', o_primary: '', o_accent: '', o_danger: '', o_ann_bg: '', o_ann_tx: '', o_foot_bg: '', o_foot_tx: '' });
 Object.entries(DEF).forEach(([k, v]) => db.prepare('INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)').run(k, v));
-const S = () => Object.fromEntries(db.prepare('SELECT key,value FROM settings').all().map(r => [r.key, r.value]));
+const S = () => Object.fromEntries(db.prepare("SELECT key,value FROM settings WHERE key NOT LIKE 'order_email_%'").all().map(r => [r.key, r.value]));
 
 if (!db.prepare("SELECT 1 FROM users WHERE role='admin'").get()) {
-  const pw = crypto.randomBytes(6).toString('hex');
+  const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase(), pw = process.env.ADMIN_PASSWORD || '';
+  if (!/^\S+@\S+\.\S+$/.test(email) || pw.length < 14) throw new Error('No admin account exists. Set ADMIN_EMAIL and ADMIN_PASSWORD (at least 14 characters), then restart.');
   db.prepare('INSERT INTO users(id,name,email,phone,hash,role) VALUES(?,?,?,?,?,?)')
-    .run(crypto.randomUUID(), 'Admin', 'admin@shop.local', '', bcrypt.hashSync(pw, 10), 'admin');
-  console.log('\n=== ADMIN LOGIN ===\nEmail: admin@shop.local\nPassword: ' + pw + '\n(eta ekbar e dekhabe, likhe rakho. Admin > Settings theke password change koro)\n');
+    .run(crypto.randomUUID(), 'Admin', email, '', bcrypt.hashSync(pw, 12), 'admin');
 }
 if (!db.prepare('SELECT 1 FROM products').get()) {
   const ins = db.prepare('INSERT INTO products(name,category,brand,sku,description,price,old_price,stock) VALUES(?,?,?,?,?,?,?,?)');
@@ -68,10 +83,11 @@ if (!secret) {
   try { secret = fs.readFileSync(secretFile, 'utf8').trim(); }
   catch { secret = crypto.randomBytes(32).toString('hex'); fs.writeFileSync(secretFile, secret, { mode: 0o600 }); }
 }
+if (String(secret || '').length < 32) throw new Error('SESSION_SECRET or .session-secret must contain at least 32 characters.');
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+   app.set('trust proxy', process.env.TRUST_PROXY === '1' ? 1 : false);
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -87,10 +103,11 @@ app.use((req, res, next) => {
   if (o) { try { if (new URL(o).host !== req.get('host')) throw 0; } catch { return res.status(403).json({ error: 'Blocked request' }); } }
   next();
 });
+   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 app.use(express.json({ limit: '100kb' }));
 app.use(session({
   name: 'sid', secret, resave: false, saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE === '1', maxAge: 7 * 864e5 }
+  cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE === '1' || process.env.NODE_ENV === 'production', maxAge: 7 * 864e5 }
 }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -99,7 +116,7 @@ const PHONE = /^01[3-9]\d{8}$/;
 const np = p => String(p || '').replace(/[\s-]/g, '').replace(/^\+?88/, '');
 const STATUSES = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 const PSTAT = ['Unpaid', 'Verifying', 'Paid'];
-const PAYS = { cod: 'Cash on Delivery', bkash: 'bKash', nagad: 'Nagad' };
+const PAYS = { cod: 'Cash on Delivery', bkash: 'bKash', nagad: 'Nagad', rocket: 'Rocket' };
 const need = (req, res, next) => req.session.uid ? next() : res.status(401).json({ error: 'Please login first' });
 const admin = (req, res, next) => {
   const u = req.session.uid && db.prepare('SELECT role FROM users WHERE id=?').get(req.session.uid);
@@ -139,21 +156,32 @@ const withImg = p => {
 
 // ---------- Auth ----------
 app.post('/api/register', limit, (req, res) => {
-  const { name, email, password } = req.body || {}, phone = np((req.body || {}).phone);
-  if (!String(name || '').trim() || !/^\S+@\S+\.\S+$/.test(email || '') || !PHONE.test(phone) || String(password || '').length < 8)
-    return res.status(400).json({ error: 'Enter a valid name, email, BD phone (01XXXXXXXXX) and a password of 8+ characters' });
+  const { name, password } = req.body || {}, raw = String((req.body || {}).identifier || (req.body || {}).email || (req.body || {}).phone || '').trim();
+  const email = raw.includes('@') ? raw.toLowerCase().slice(0, 120) : null, phone = email ? null : np(raw);
+  if (!String(name || '').trim() || !(email ? /^\S+@\S+\.\S+$/.test(email) : PHONE.test(phone)) || String(password || '').length < 12)
+    return res.status(400).json({ error: 'Enter your name, one valid email or BD phone number, and a password of at least 12 characters' });
   try {
     const id = crypto.randomUUID();
-    db.prepare('INSERT INTO users(id,name,email,phone,hash) VALUES(?,?,?,?,?)')
-      .run(id, String(name).trim().slice(0, 80), String(email).trim().toLowerCase().slice(0, 120), phone, bcrypt.hashSync(String(password), 10));
+    db.transaction(() => {
+      if (email && db.prepare('SELECT 1 FROM users WHERE lower(email)=?').get(email)) throw new Error('IDENTITY_EXISTS');
+      if (phone && db.prepare('SELECT 1 FROM users WHERE phone=?').get(phone)) throw new Error('IDENTITY_EXISTS');
+      db.prepare('INSERT INTO users(id,name,email,phone,hash) VALUES(?,?,?,?,?)')
+        .run(id, String(name).trim().slice(0, 80), email, phone, bcrypt.hashSync(String(password), 12));
+    })();
     signIn(req, res, id);
-  } catch (e) { res.status(400).json({ error: 'This email is already registered' }); }
+  } catch (e) { res.status(400).json({ error: e.message === 'IDENTITY_EXISTS' || e.message.includes('UNIQUE') ? 'This phone or email cannot be used. If you already have an account, sign in.' : e.message }); }
 });
 app.post('/api/login', limit, (req, res) => {
-  const { email, password } = req.body || {};
-  const u = db.prepare('SELECT * FROM users WHERE email=?').get(String(email || '').trim().toLowerCase());
-  const ok = bcrypt.compareSync(String(password || ''), u ? u.hash : DUMMY);
-  if (!u || !ok) return res.status(400).json({ error: 'Wrong email or password' });
+  const { password } = req.body || {}, raw = String((req.body || {}).identifier || (req.body || {}).email || (req.body || {}).phone || '').trim();
+  let candidates = [];
+  if (raw.includes('@')) { const u = db.prepare('SELECT * FROM users WHERE lower(email)=?').get(raw.toLowerCase()); if (u) candidates = [u]; }
+  else if (PHONE.test(np(raw))) {
+    candidates = db.prepare('SELECT * FROM users WHERE phone=?').all(np(raw));
+  }
+  const matching = candidates.filter(u => bcrypt.compareSync(String(password || ''), u.hash));
+  if (!candidates.length) bcrypt.compareSync(String(password || ''), DUMMY);
+  if (matching.length !== 1) return res.status(400).json({ error: 'Wrong phone/email or password' });
+  const u = matching[0];
   signIn(req, res, u.id);
 });
 app.post('/api/logout', (req, res) => req.session.destroy(() => { res.clearCookie('sid'); res.json({ ok: 1 }); }));
@@ -161,6 +189,7 @@ app.get('/api/me', (req, res) => {
   const u = req.session.uid && db.prepare('SELECT id,name,email,phone,role FROM users WHERE id=?').get(req.session.uid);
   res.json(u || null);
 });
+require('./appearance')(app, db, { need, admin }); // Phase 4: banners + appearance (purano /api/banners er age)
 app.get('/api/settings', (req, res) => res.json(S()));
 app.get('/api/banners', (req, res) =>
   res.json(db.prepare('SELECT id,title,subtitle,link,image FROM banners WHERE active=1 ORDER BY id DESC').all()));
@@ -172,10 +201,17 @@ const SORTS = {
   discount: 'CASE WHEN p.old_price>p.price THEN (p.old_price-p.price)/p.old_price ELSE 0 END DESC, p.id DESC'
 };
 app.get('/api/products', (req, res) => {
-  const { q = '', category = '', sort = 'new', min, max, stock, rating, deal, page = 1 } = req.query;
+  const { q = '', category = '', cat, sort = 'new', min, max, stock, rating, deal, page = 1 } = req.query;
   const w = ['p.active=1'], a = [];
   if (q) { const l = lk(q); w.push("(p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.category LIKE ? ESCAPE '\\')"); a.push(l, l, l, l); }
   if (category) { w.push('p.category=?'); a.push(String(category)); }
+  if (+cat > 0 && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='categories'").get()) {
+    const ids = db.prepare('WITH RECURSIVE descendants(id) AS (SELECT ? UNION ALL SELECT c.id FROM categories c JOIN descendants d ON c.parent_id=d.id) SELECT id FROM descendants').all(+cat).map(x => x.id);
+    if (ids.length) {
+      const marks = ids.map(() => '?').join(',');
+      w.push(`(p.cat_id IN (${marks}) OR p.sub_id IN (${marks}) OR p.child_id IN (${marks}))`); a.push(...ids, ...ids, ...ids);
+    } else w.push('0=1');
+  }
   if (+min > 0) { w.push('p.price>=?'); a.push(+min); }
   if (+max > 0) { w.push('p.price<=?'); a.push(+max); }
   if (stock === '1') w.push('p.stock>0');
@@ -188,8 +224,11 @@ app.get('/api/products', (req, res) => {
     .all(...a, (pg - 1) * 12).map(withImg);
   res.json({ items, total });
 });
-app.get('/api/categories', (req, res) =>
-  res.json(db.prepare("SELECT category,COUNT(*) n FROM products WHERE active=1 AND category<>'' GROUP BY category ORDER BY category").all()));
+app.get('/api/categories', (req, res) => {
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='categories'").get())
+    return res.json(db.prepare("SELECT c.name category,COUNT(p.id) n,c.show_home home,c.show_menu menu FROM categories c LEFT JOIN products p ON p.active=1 AND (p.cat_id=c.id OR (p.cat_id IS NULL AND p.category=c.name)) WHERE c.parent_id IS NULL AND c.active=1 GROUP BY c.id ORDER BY c.sort,c.id").all());
+  res.json(db.prepare("SELECT category,COUNT(*) n FROM products WHERE active=1 AND category<>'' GROUP BY category ORDER BY category").all());
+});
 app.get('/api/products/by-ids', (req, res) => {
   const ids = String(req.query.ids || '').split(',').map(Number).filter(n => Number.isInteger(n) && n > 0).slice(0, 40);
   if (!ids.length) return res.json([]);
@@ -200,7 +239,9 @@ app.get('/api/products/:id', (req, res) => {
   const p = db.prepare(`SELECT p.*,${RATING} FROM products p WHERE p.id=? AND p.active=1`).get(+req.params.id);
   if (!p) return res.status(404).json({ error: 'Product not found' });
   withImg(p);
+  p.variants = variantOps.list(p.id, false);
   p.reviewList = db.prepare('SELECT r.rating,r.comment,r.created,u.name FROM reviews r JOIN users u ON u.id=r.user_id WHERE r.product_id=? ORDER BY r.id DESC').all(p.id);
+     p.reviewList.forEach(r => { r.name = String(r.name).split(' ')[0]; });
   p.related = db.prepare(`SELECT p.*,${RATING} FROM products p WHERE p.active=1 AND p.id<>? AND p.category=? ORDER BY p.id DESC LIMIT 4`).all(p.id, p.category).map(withImg);
   p.canReview = false;
   if (req.session.uid) {
@@ -227,6 +268,9 @@ function shipFor(amount, area) {
   if (free > 0 && amount >= free) return 0;
   return +(area === 'outside' ? s.ship_outside : s.ship_dhaka) || 0;
 }
+// Register variant-aware endpoints before the legacy-compatible cart/order routes.
+const orderEmail = require('./order-email')(app, db, { need, admin, port: +process.env.PORT || 3000, testLimit: mkLimit(5, 15 * 60 * 1000), retryLimit: mkLimit(20, 15 * 60 * 1000) });
+const variantOps = require('./variants')(app, db, { couponCheck, shipFor, PAYS, PHONE, np, orderLimit, addGuest, withImg, enqueueOrderEmail: orderEmail.enqueue, scheduleOrderEmail: orderEmail.schedule });
 app.post('/api/cart/preview', (req, res) => {
   const b = req.body || {}, lines = [];
   for (const i of (Array.isArray(b.items) ? b.items : []).slice(0, 50)) {
@@ -245,8 +289,10 @@ app.post('/api/cart/preview', (req, res) => {
 
 // ---------- Orders (guest checkout supported) ----------
 function cancelOrder(o) {
-  db.prepare('SELECT product_id,qty FROM order_items WHERE order_id=?').all(o.id)
-    .forEach(i => db.prepare('UPDATE products SET stock=stock+? WHERE id=?').run(i.qty, i.product_id));
+  db.prepare('SELECT product_id,qty,variant_id FROM order_items WHERE order_id=?').all(o.id).forEach(i => {
+    if (i.variant_id) variantOps.restock(i);
+    else db.prepare('UPDATE products SET stock=stock+? WHERE id=?').run(i.qty, i.product_id);
+  });
   if (o.coupon) db.prepare('UPDATE coupons SET used=MAX(used-1,0) WHERE code=?').run(o.coupon);
   db.prepare("UPDATE orders SET status='Cancelled' WHERE id=?").run(o.id);
   db.prepare('INSERT INTO order_events(order_id,status) VALUES(?,?)').run(o.id, 'Cancelled');
@@ -254,8 +300,10 @@ function cancelOrder(o) {
 app.post('/api/orders', orderLimit, (req, res) => {
   const { items, name, address, area, idem, coupon, note, pay = 'cod', trx } = req.body || {};
   const phone = np((req.body || {}).phone);
+  const email = String((req.body || {}).email || '').trim().toLowerCase();
   if (!String(name || '').trim() || !String(address || '').trim() || !PHONE.test(phone) || !['dhaka', 'outside'].includes(area) || !idem || String(idem).length > 80 || !PAYS[pay])
     return res.status(400).json({ error: 'Please enter a valid name, phone, area and address' });
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address or leave it blank' });
   const t = String(trx || '').trim().toUpperCase();
   if (pay !== 'cod' && !/^[A-Z0-9]{6,16}$/.test(t)) return res.status(400).json({ error: 'Enter the ' + PAYS[pay] + ' Transaction ID (6-16 letters/numbers)' });
   const dup = db.prepare('SELECT id FROM orders WHERE idem=?').get(String(idem));
@@ -278,13 +326,15 @@ app.post('/api/orders', orderLimit, (req, res) => {
       if (cp && !db.prepare('UPDATE coupons SET used=used+1 WHERE code=? AND (max_uses=0 OR used<max_uses)').run(cp.code).changes)
         throw new Error('This coupon has reached its usage limit');
       const disc = cp ? cp.discount : 0, ship = shipFor(sub - disc, area);
-      db.prepare('INSERT INTO orders(id,user_id,name,phone,address,subtotal,shipping,total,idem,discount,coupon,note,area,payment,payment_status,trx) VALUES(@id,@uid,@name,@phone,@address,@sub,@ship,@total,@idem,@disc,@coupon,@note,@area,@payment,@ps,@trx)')
-        .run({ id: oid, uid: req.session.uid || null, name: String(name).trim().slice(0, 80), phone, address: String(address).trim().slice(0, 500), sub, ship, total: sub - disc + ship, idem: String(idem), disc, coupon: cp ? cp.code : null, note: String(note || '').slice(0, 300), area, payment: PAYS[pay], ps: pay === 'cod' ? 'Unpaid' : 'Verifying', trx: pay === 'cod' ? null : t });
+      db.prepare('INSERT INTO orders(id,user_id,name,phone,email,address,subtotal,shipping,total,idem,discount,coupon,note,area,payment,payment_status,trx) VALUES(@id,@uid,@name,@phone,@email,@address,@sub,@ship,@total,@idem,@disc,@coupon,@note,@area,@payment,@ps,@trx)')
+        .run({ id: oid, uid: req.session.uid || null, name: String(name).trim().slice(0, 80), phone, email: email || null, address: String(address).trim().slice(0, 500), sub, ship, total: sub - disc + ship, idem: String(idem), disc, coupon: cp ? cp.code : null, note: String(note || '').slice(0, 300), area, payment: PAYS[pay], ps: pay === 'cod' ? 'Unpaid' : 'Verifying', trx: pay === 'cod' ? null : t });
       rows.forEach(r => db.prepare('INSERT INTO order_items(order_id,product_id,name,price,qty) VALUES(?,?,?,?,?)').run(oid, ...r));
       db.prepare('INSERT INTO order_events(order_id,status) VALUES(?,?)').run(oid, 'Pending');
+      orderEmail.enqueue(oid);
       return oid;
     })();
     if (!req.session.uid) addGuest(req, id);
+    orderEmail.schedule(id);
     res.json({ id });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -302,7 +352,8 @@ app.get('/api/orders/:id', (req, res) => {
   const o = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!o || !(mine(req, o) || isAdmin(req))) return res.status(404).json({ error: 'Order not found' });
   delete o.idem;
-  o.items = db.prepare('SELECT name,price,qty FROM order_items WHERE order_id=?').all(o.id);
+  delete o.email; // contact email is visible only in the admin order list
+  o.items = db.prepare('SELECT name,price,qty,variant,sku FROM order_items WHERE order_id=?').all(o.id);
   o.events = db.prepare('SELECT status,created FROM order_events WHERE order_id=? ORDER BY id').all(o.id);
   res.json(o);
 });
@@ -350,10 +401,13 @@ const sig = f => {
 };
 const files = req => req.files || (req.file ? [req.file] : []);
 const drop = req => files(req).forEach(f => fs.unlink(f.path, () => { }));
+let catalog;
 const checkImgs = (req, res, next) => files(req).every(sig) ? next() : (drop(req), res.status(400).json({ error: 'Only real JPG/PNG/WebP images are allowed' }));
-const pf = b => [String(b.name || '').trim().slice(0, 200), String(b.category || '').trim().slice(0, 60), String(b.brand || '').trim().slice(0, 60), String(b.sku || '').trim().slice(0, 60),
+catalog = require('./features')(app, db, { need, admin, upload, checkImgs, drop });
+const pf = b => [String(b.name || '').trim().slice(0, 200), String(b.category || '').trim().slice(0, 60), String(b.brand || '').trim().slice(0, 60), catalog.sku(b.sku, b.name, b.id),
   String(b.description || '').slice(0, 5000), +b.price, (+b.old_price > +b.price) ? +b.old_price : null, Math.floor(+b.stock)];
-const validP = b => String(b.name || '').trim() && +b.price > 0 && Math.floor(+b.stock) >= 0;
+const validP = b => String(b.name || '').trim() && Number.isFinite(+b.price) && +b.price > 0 &&
+  Number.isFinite(+b.stock) && Number.isInteger(+b.stock) && +b.stock >= 0 && +b.stock <= 1e6;
 const safeLink = l => /^(#\/|\/|https?:\/\/)/i.test(String(l || '').trim()) ? String(l).trim().slice(0, 300) : '';
 const BD = "'+6 hours'"; // Bangladesh time (UTC+6)
 
@@ -383,24 +437,37 @@ app.get('/api/admin/stats', need, admin, (req, res) => {
     recent: db.prepare('SELECT id,name,total,status,payment,payment_status,created FROM orders ORDER BY created DESC,rowid DESC LIMIT 6').all()
   });
 });
-app.get('/api/admin/products', need, admin, (req, res) => res.json(db.prepare('SELECT * FROM products ORDER BY id DESC').all().map(withImg)));
+app.get('/api/admin/products', need, admin, (req, res) => res.json(db.prepare('SELECT * FROM products ORDER BY id DESC').all().map(p => {
+  withImg(p); p.variants = variantOps.list(p.id, true); return p;
+})));
 app.post('/api/admin/products', need, admin, upload.array('images', 6), checkImgs, (req, res) => {
   if (!validP(req.body)) { drop(req); return res.status(400).json({ error: 'Please enter a valid name, price and stock' }); }
-  const imgs = (req.files || []).map(f => '/uploads/' + f.filename);
-  db.prepare('INSERT INTO products(name,category,brand,sku,description,price,old_price,stock,image,images) VALUES(?,?,?,?,?,?,?,?,?,?)')
-    .run(...pf(req.body), imgs[0] || null, JSON.stringify(imgs));
-  res.json({ ok: 1 });
+  try {
+    const chain = catalog.resolve(req.body), imgs = (req.files || []).map(f => '/uploads/' + f.filename);
+    const id = db.transaction(() => {
+      const r = db.prepare('INSERT INTO products(name,category,brand,sku,description,price,old_price,stock,image,images) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .run(...pf(req.body), imgs[0] || null, JSON.stringify(imgs));
+      catalog.setCat(r.lastInsertRowid, chain); variantOps.saveExtras(r.lastInsertRowid, req.body); return r.lastInsertRowid;
+    })(); res.json({ ok: 1, id });
+  } catch (e) { drop(req); res.status(400).json({ error: e.message }); }
 });
 app.put('/api/admin/products/:id', need, admin, upload.array('images', 6), checkImgs, (req, res) => {
   if (!validP(req.body)) { drop(req); return res.status(400).json({ error: 'Please enter a valid name, price and stock' }); }
-  db.prepare('UPDATE products SET name=?,category=?,brand=?,sku=?,description=?,price=?,old_price=?,stock=? WHERE id=?').run(...pf(req.body), +req.params.id);
-  if (req.files && req.files.length) {
-    const imgs = req.files.map(f => '/uploads/' + f.filename);
-    db.prepare('UPDATE products SET image=?,images=? WHERE id=?').run(imgs[0], JSON.stringify(imgs), +req.params.id);
-  }
-  res.json({ ok: 1 });
+  try {
+    const id = +req.params.id, chain = catalog.resolve(req.body), imgs = (req.files || []).map(f => '/uploads/' + f.filename);
+    const changed = db.transaction(() => {
+      const old = db.prepare('SELECT has_variants FROM products WHERE id=?').get(id); if (!old) throw new Error('Product not found');
+      const values = pf({ ...req.body, id });
+      if (old.has_variants && !(req.body.has_variants === '1' || req.body.has_variants === 1)) values[7] = +req.body.stock;
+      db.prepare('UPDATE products SET name=?,category=?,brand=?,sku=?,description=?,price=?,old_price=?,stock=? WHERE id=?').run(...values, id);
+      catalog.setCat(id, chain); variantOps.saveExtras(id, req.body);
+      if (imgs.length) db.prepare('UPDATE products SET image=?,images=? WHERE id=?').run(imgs[0], JSON.stringify(imgs), id);
+      return true;
+    })(); res.json({ ok: changed });
+  } catch (e) { drop(req); res.status(400).json({ error: e.message }); }
 });
 app.post('/api/admin/products/:id/stock', need, admin, (req, res) => {
+  if (variantOps.hasVariants(+req.params.id)) return res.status(400).json({ error: 'This product tracks stock by variant. Edit stock in the variant table.' });
   const s = Math.floor(+(req.body || {}).stock);
   if (!(s >= 0 && s <= 1e6)) return res.status(400).json({ error: 'Enter a valid stock quantity' });
   db.prepare('UPDATE products SET stock=? WHERE id=?').run(s, +req.params.id); res.json({ ok: 1 });
@@ -420,16 +487,16 @@ function adminOrders(req) {
   const { status = '', q = '', ps = '' } = req.query, w = ['1=1'], a = [];
   if (STATUSES.includes(status)) { w.push('status=?'); a.push(status); }
   if (PSTAT.includes(ps)) { w.push('payment_status=?'); a.push(ps); }
-  if (q) { const l = lk(q); w.push("(id LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' OR trx LIKE ? ESCAPE '\\')"); a.push(l, l, l, l); }
+  if (q) { const l = lk(q); w.push("(id LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR trx LIKE ? ESCAPE '\\')"); a.push(l, l, l, l, l); }
   const list = db.prepare(`SELECT * FROM orders WHERE ${w.join(' AND ')} ORDER BY created DESC,rowid DESC LIMIT 300`).all(...a);
-  list.forEach(o => { delete o.idem; o.guest = !o.user_id; o.items = db.prepare('SELECT name,price,qty FROM order_items WHERE order_id=?').all(o.id); });
+  list.forEach(o => { delete o.idem; o.guest = !o.user_id; o.items = db.prepare('SELECT name,price,qty,variant,sku FROM order_items WHERE order_id=?').all(o.id); o.email_notification = db.prepare('SELECT status,attempts,last_attempt_at,sent_at,last_error FROM order_email_notifications WHERE order_id=?').get(o.id) || { status: 'Unavailable', attempts: 0 }; });
   return list;
 }
 app.get('/api/admin/orders', need, admin, (req, res) => res.json(adminOrders(req)));
 app.get('/api/admin/orders.csv', need, admin, (req, res) => {
   const c = v => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
-  const rows = [['Order', 'Date(BD)', 'Status', 'Customer', 'Phone', 'Address', 'Items', 'Subtotal', 'Discount', 'Shipping', 'Total', 'Payment', 'Payment status', 'TrxID', 'Tracking', 'Note'].map(c).join(',')];
-  adminOrders(req).forEach(o => rows.push([o.id, new Date(String(o.created).replace(' ', 'T') + 'Z').toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }), o.status, o.name, o.phone, o.address, o.items.map(i => i.name + ' x' + i.qty).join('; '), o.subtotal, o.discount || 0, o.shipping, o.total, o.payment, o.payment_status, o.trx, o.tracking, o.note].map(c).join(',')));
+  const rows = [['Order', 'Date(BD)', 'Status', 'Customer', 'Phone', 'Email', 'Address', 'Items', 'Subtotal', 'Discount', 'Shipping', 'Total', 'Payment', 'Payment status', 'TrxID', 'Tracking', 'Note'].map(c).join(',')];
+  adminOrders(req).forEach(o => rows.push([o.id, new Date(String(o.created).replace(' ', 'T') + 'Z').toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }), o.status, o.name, o.phone, o.email, o.address, o.items.map(i => i.name + ' x' + i.qty).join('; '), o.subtotal, o.discount || 0, o.shipping, o.total, o.payment, o.payment_status, o.trx, o.tracking, o.note].map(c).join(',')));
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename=orders.csv');
   res.send('\ufeff' + rows.join('\n'));
@@ -462,8 +529,8 @@ app.post('/api/admin/password', need, admin, limit, (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT hash FROM users WHERE id=?').get(req.session.uid);
   if (!u || !bcrypt.compareSync(String(current || ''), u.hash)) return res.status(400).json({ error: 'Current password is wrong' });
-  if (String(next || '').length < 10) return res.status(400).json({ error: 'New password must be at least 10 characters' });
-  db.prepare('UPDATE users SET hash=? WHERE id=?').run(bcrypt.hashSync(String(next), 10), req.session.uid);
+  if (String(next || '').length < 14) return res.status(400).json({ error: 'New password must be at least 14 characters' });
+  db.prepare('UPDATE users SET hash=? WHERE id=?').run(bcrypt.hashSync(String(next), 12), req.session.uid);
   res.json({ ok: 1 });
 });
 
@@ -507,13 +574,19 @@ app.post('/api/admin/settings', need, admin, (req, res) => {
   const b = req.body || {};
   for (const k of NUM) if (k in b && (!(+b[k] >= 0) || +b[k] > 100000)) return res.status(400).json({ error: 'Shipping values must be valid numbers' });
   for (const k of ['facebook', 'instagram']) if (b[k] && !/^https?:\/\//i.test(String(b[k]).trim())) return res.status(400).json({ error: 'Facebook/Instagram link must start with https://' });
-  for (const k of ['bkash', 'nagad']) if (b[k] && !PHONE.test(np(String(b[k]).trim()))) return res.status(400).json({ error: k + ' number must be a valid BD number (01XXXXXXXXX)' });
+  for (const k of ['bkash', 'nagad', 'rocket']) {
+    if (b[k] && !PHONE.test(np(String(b[k]).trim()))) return res.status(400).json({ error: k + ' number must be a valid BD number (01XXXXXXXXX)' });
+    const enabled = b[k + '_enabled'];
+    if (enabled !== undefined && !['0', '1', ''].includes(String(enabled))) return res.status(400).json({ error: 'Invalid payment method setting' });
+    if (String(enabled) === '1' && !PHONE.test(np(String(b[k] || '').trim()))) return res.status(400).json({ error: 'Set a valid BD number before enabling ' + k });
+  }
+     for (const k of Object.keys(DEF)) if ((k.startsWith('c_') || k.startsWith('o_')) && k in b && String(b[k]).trim() !== '' && !/^#[0-9a-fA-F]{6}$/.test(String(b[k]).trim())) return res.status(400).json({ error: 'Invalid color value' });
   const up = db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)');
   db.transaction(() => {
     for (const k of Object.keys(DEF)) if (k in b) {
       let v = String(b[k] ?? '').trim().slice(0, 8000);
       if (k === 'whatsapp') v = v.replace(/[^\d]/g, '');
-      if (k === 'bkash' || k === 'nagad') v = np(v);
+      if (k === 'bkash' || k === 'nagad' || k === 'rocket') v = np(v);
       if (NUM.includes(k)) v = String(+v);
       if (k === 'store_name' && !v) v = 'My Shop';
       up.run(k, v);

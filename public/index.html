@@ -9,7 +9,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/extra.css">
+<link rel="stylesheet" href="/theme.css">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600&display=swap" rel="stylesheet">
+<script src="/theme.js"></script>
 <script>try{document.documentElement.dataset.theme=JSON.parse(localStorage.getItem('theme')||'null')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light')}catch(e){document.documentElement.dataset.theme='light'}</script>
+<link rel="stylesheet" href="/appearance.css">
+<link rel="stylesheet" href="/variants.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -67,5 +73,10 @@
 <button id="up" aria-label="Back to top" hidden><svg class="ic"><use href="#i-up"/></svg></button>
 <div id="toasts" role="status" aria-live="polite"></div>
 <script src="/app.js"></script>
+<script src="/extra.js"></script>
+<script src="/store-catalog.js"></script>
+<script src="/variants-ui.js"></script>
+<script src="/store-appearance.js"></script>
+<script src="/select-ui.js"></script>
 </body>
 </html>

@@ -87,14 +87,14 @@ function paintCfg() {
   } else a.hidden = true;
   const wa = String(cfg.whatsapp || '').replace(/\D/g, ''), link = (u, l) => /^https?:\/\//i.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : '';
   $('#foot').innerHTML = `<div class="fw"><div><div class="logo">${esc(cfg.store_name)}</div><p>${esc((cfg.about || '').slice(0, 140))}</p></div>
-  <div><h4>Help</h4>${PAGES.map(([k, t]) => `<a href="#/page/${k}">${t}</a>`).join('')}</div>
+  <div><h4>Help</h4><a href="#/track">Track order</a>${PAGES.map(([k, t]) => `<a href="#/page/${k}">${t}</a>`).join('')}</div>
   <div><h4>Contact</h4>${cfg.phone ? `<a href="tel:${esc(cfg.phone)}">${esc(cfg.phone)}</a>` : ''}${wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${link(cfg.facebook, 'Facebook')}${link(cfg.instagram, 'Instagram')}${cfg.address ? `<span>${esc(cfg.address)}</span>` : ''}${cfg.hours ? `<span>${esc(cfg.hours)}</span>` : ''}${!cfg.phone && !wa && !cfg.address ? '<span>Contact details coming soon</span>' : ''}</div>
   <div><h4>Payment</h4><span>Cash on Delivery</span></div></div>
   <div class="copy">© ${new Date().getFullYear()} ${esc(cfg.store_name)}. All rights reserved.</div>`;
 }
 function paintCats() {
-  const cur = Q().q.get('category') || '', onShop = Q().parts[0] === 'shop';
-  $('#cats').innerHTML = `<a href="#/shop" class="${onShop && !cur ? 'on' : ''}">All</a>` +
+  const cur = Q().q.get('category') || '', catId = Q().q.get('cat') || '', onShop = Q().parts[0] === 'shop';
+  $('#cats').innerHTML = `<a href="#/shop" class="${onShop && !cur && !catId ? 'on' : ''}">All</a>` +
     cats.map(c => `<a href="#/shop?category=${encodeURIComponent(c.category)}" class="${onShop && cur === c.category ? 'on' : ''}">${esc(c.category)}</a>`).join('');
 }
 $('#logo').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
@@ -161,8 +161,8 @@ async function home() {
     <div class="scene"><div class="sin" id="sin"><div class="cube"><div class="f f1">🛍️</div><div class="f f2">🎁</div><div class="f f3">⭐</div><div class="f f4">🚚</div><div class="f f5">💳</div><div class="f f6">❤️</div></div></div><div class="orb o1"></div><div class="orb o2"></div></div></section>`;
   const feats = [['truck', 'Delivery', `Dhaka ${tk(cfg.ship_dhaka)} · Outside ${tk(cfg.ship_outside)}${+cfg.free_ship > 0 ? ` · Free over ${tk(cfg.free_ship)}` : ''}`], ['shield', 'Cash on Delivery', 'Pay when you receive your order'], ['refresh', 'Order tracking', 'Follow your order step by step'], ['headset', 'Support', cfg.phone || 'See footer for contact details']];
   const none = !fresh.total;
-  app.innerHTML = hero + `<div class="feats">${feats.map(f => `<div class="ft">${ic(f[0])}<div><b>${f[1]}</b><small>${esc(f[2])}</small></div></div>`).join('')}</div>` +
-    (cats.length ? `<section class="sec"><div class="sh"><h2>Shop by category</h2></div><div class="cats">${cats.map((c, i) => `<a class="cat3d tilt" style="--h:${(i * 47 + 230) % 360}" href="#/shop?category=${encodeURIComponent(c.category)}"><span>${esc(c.category.slice(0, 1).toUpperCase())}</span><b>${esc(c.category)}</b><small>${c.n} items</small></a>`).join('')}</div></section>` : '') +
+  app.innerHTML = hero + `<div class="home-discovery"><div class="feats">${feats.map(f => `<div class="ft">${ic(f[0])}<div><b>${f[1]}</b><small>${esc(f[2])}</small></div></div>`).join('')}</div>` +
+    (cats.length ? `<section class="sec"><div class="sh"><h2>Shop by category</h2></div><div class="cats">${cats.map((c, i) => `<a class="cat3d tilt" style="--h:${(i * 47 + 230) % 360}" href="#/shop?category=${encodeURIComponent(c.category)}"><span>${esc(c.category.slice(0, 1).toUpperCase())}</span><b>${esc(c.category)}</b><small>${c.n} items</small></a>`).join('')}</div></section>` : '') + `</div>` +
     sec('🔥 Hot deals', deals.items.slice(0, 4), '#/shop?deal=1&sort=discount') +
     sec('✨ New arrivals', fresh.items.slice(0, 8), '#/shop') +
     sec('Recently viewed', rv.slice(0, 4)) +
@@ -192,19 +192,33 @@ function sliderInit() {
 
 async function shop(q) {
   const t = routeId;
-  const F = { q: q.get('q') || '', category: q.get('category') || '', sort: q.get('sort') || 'new', min: q.get('min') || '', max: q.get('max') || '', stock: q.get('stock') || '', rating: q.get('rating') || '', deal: q.get('deal') || '' };
+  const F = { q: q.get('q') || '', category: q.get('category') || '', cat: q.get('cat') || '', sort: q.get('sort') || 'new', min: q.get('min') || '', max: q.get('max') || '', stock: q.get('stock') || '', rating: q.get('rating') || '', deal: q.get('deal') || '' };
   si.value = F.q; $('#sclear').hidden = !F.q;
   const params = (x = {}) => { const p = new URLSearchParams(); Object.entries({ ...F, ...x }).forEach(([k, v]) => { if (v && !(k === 'sort' && v === 'new')) p.set(k, v) }); return p };
   const lnk = x => esc('#/shop?' + params(x));
   const go = x => { location.hash = '#/shop?' + params(x) };
   const chips = [];
-  if (F.q) chips.push(['Search: ' + F.q, { q: '' }]); if (F.category) chips.push([F.category, { category: '' }]);
+  if (F.q) chips.push(['Search: ' + F.q, { q: '' }]); if (F.category) chips.push([F.category, { category: '', cat: '' }]); if (F.cat) chips.push(['Category filter', { cat: '' }]);
   if (F.min) chips.push(['Min ' + tk(F.min), { min: '' }]); if (F.max) chips.push(['Max ' + tk(F.max), { max: '' }]);
   if (F.stock) chips.push(['In stock', { stock: '' }]); if (F.deal) chips.push(['On sale', { deal: '' }]); if (F.rating) chips.push([F.rating + '★ & up', { rating: '' }]);
+  const categoryTree = await api('/api/categories/tree').catch(() => []);
+  const findCatPath = (nodes, id, parents = []) => { for (const n of nodes) { if (+n.id === +id) return [...parents, n]; const p = findCatPath(n.children || [], id, [...parents, n]); if (p) return p; } return null; };
+  const selectedPath = F.cat ? findCatPath(categoryTree, F.cat) : null;
+  const activeMain = F.category || (selectedPath && selectedPath[0].name) || '';
+  const filterCats = categoryTree.map(main => {
+    const selected = !F.cat && F.category === main.name, expanded = selected || (selectedPath && +selectedPath[0].id === +main.id);
+    const subs = expanded ? (main.children || []).map(sub => {
+      const subSelected = selectedPath && selectedPath.length === 2 && +selectedPath[1]?.id === +sub.id;
+      const showChildren = selectedPath && selectedPath.length >= 2 && +selectedPath[1]?.id === +sub.id;
+      const children = showChildren ? (sub.children || []).map(child => `<a class="cat-child ${+selectedPath[2]?.id === +child.id ? 'on' : ''}" href="${lnk({ category: '', cat: child.id })}">${esc(child.name)}</a>`).join('') : '';
+      return `<a class="cat-sub ${subSelected ? 'on' : ''}" href="${lnk({ category: '', cat: sub.id })}">${esc(sub.name)}</a>${children}`;
+    }).join('') : '';
+    return `<a class="cat-main ${selected ? 'on' : ''}" href="${lnk({ category: main.name, cat: '' })}">${esc(main.name)}</a>${subs}`;
+  }).join('');
   app.innerHTML = `<div class="crumb"><a href="#/">Home</a> / <span>${F.category ? esc(F.category) : F.q ? 'Search' : 'All products'}</span></div>
   <div class="shopw"><div id="ov"></div>
   <aside class="filters" id="flt"><div class="fh"><b>Filters</b><button class="fx" id="fx" aria-label="Close filters">${ic('x')}</button></div>
-   <div class="fg"><h4>Category</h4><a class="${!F.category ? 'on' : ''}" href="${lnk({ category: '' })}">All</a>${cats.map(c => `<a class="${F.category === c.category ? 'on' : ''}" href="${lnk({ category: c.category })}">${esc(c.category)} <small>${c.n}</small></a>`).join('')}</div>
+   <div class="fg cat-filter"><h4>Category</h4><a class="${!F.category && !F.cat ? 'on' : ''}" href="${lnk({ category: '', cat: '' })}">All</a>${filterCats || cats.map(c => `<a class="cat-main ${F.category === c.category ? 'on' : ''}" href="${lnk({ category: c.category, cat: '' })}">${esc(c.category)} <small>${c.n}</small></a>`).join('')}</div>
    <div class="fg"><h4>Price (৳)</h4><div class="pr2"><input id="fmin" type="number" min="0" placeholder="Min" value="${esc(F.min)}"><input id="fmax" type="number" min="0" placeholder="Max" value="${esc(F.max)}"></div></div>
    <div class="fg"><h4>Rating</h4><select id="frt"><option value="">Any rating</option><option value="4" ${F.rating === '4' ? 'selected' : ''}>4★ & up</option><option value="3" ${F.rating === '3' ? 'selected' : ''}>3★ & up</option></select></div>
    <div class="fg"><label class="ck"><input type="checkbox" id="fst" ${F.stock ? 'checked' : ''}> In stock only</label><label class="ck"><input type="checkbox" id="fdl" ${F.deal ? 'checked' : ''}> On sale</label></div>
@@ -324,86 +338,83 @@ async function cartPage(first = true) {
 }
 
 async function checkout() {
-  if (!me) { store.set('next', '#/checkout'); toast('Please login to continue', 'ok'); location.hash = '#/login'; return }
   const t = routeId; let items = JSON.parse(sessionStorage.getItem('buynow') || 'null') || cart;
   if (!items.length) { location.hash = '#/cart'; return }
   const sv = store.get('addr', {});
-  const co = { name: sv.name || me.name, phone: sv.phone || me.phone || '', area: sv.area || 'dhaka', address: sv.address || '', note: '', coupon: '' };
-  let step = 1, d = null, busy = false; const idem = uid();
+  const co = { name: sv.name || (me && me.name) || '', phone: sv.phone || (me && me.phone) || '', email: sv.email || (me && me.email) || '', area: sv.area || 'dhaka', address: sv.address || '', note: '', coupon: '', pay: 'cod', trx: '' };
+  let d = null, busy = false; const idem = uid();
   app.innerHTML = '<div class="skb tall"></div>';
   const refresh = async () => { d = await api('/api/cart/preview', { method: 'POST', body: { items, area: co.area, coupon: co.coupon } }); if (d.couponError) { toast(d.couponError, 'err'); co.coupon = '' } };
   await refresh(); if (t !== routeId) return;
   if (!d.lines.length) return app.innerHTML = empty('😕', 'Items unavailable', 'The products in your order are no longer available.', '<a class="btn" href="#/shop">Continue shopping</a>');
-  const summary = () => `<h3>Order summary</h3>${d.lines.map(l => `<div class="sl"><span>${esc(l.name)} × ${l.qty}</span><b>${tk(l.price * l.qty)}</b></div>`).join('')}<hr>
-   <div class="sl"><span>Subtotal</span><b>${tk(d.subtotal)}</b></div>${d.discount ? `<div class="sl ok"><span>Discount (${esc(d.coupon)})</span><b>-${tk(d.discount)}</b></div>` : ''}
-   <div class="sl"><span>Delivery</span><b>${d.shipping ? tk(d.shipping) : 'Free'}</b></div><div class="sl tot"><span>Total</span><b>${tk(d.total)}</b></div>`;
+  const marks = { cod: '<span class="paymark cod" aria-hidden="true">৳</span>', bkash: '<span class="paymark bkash" aria-hidden="true">b</span>', nagad: '<span class="paymark nagad" aria-hidden="true">N</span>', rocket: '<span class="paymark rocket" aria-hidden="true">↗</span>' };
+  const payEnabled = k => cfg[k + '_enabled'] === '1' || (!cfg[k + '_enabled'] && !!cfg[k]);
+  const methods = [['cod', marks.cod, 'Cash on Delivery']];
+  if (payEnabled('bkash')) methods.push(['bkash', marks.bkash, 'bKash', cfg.bkash]);
+  if (payEnabled('nagad')) methods.push(['nagad', marks.nagad, 'Nagad', cfg.nagad]);
+  if (payEnabled('rocket')) methods.push(['rocket', marks.rocket, 'Rocket', cfg.rocket]);
+  const read = () => {
+    const f = $('#cf'); if (!f) return; const g = n => f.elements[n];
+    co.name = g('name').value; co.phone = g('phone').value.replace(/[\s-]/g, ''); co.email = g('email').value.trim(); co.area = g('area').value;
+    co.address = g('address').value; co.note = g('note').value; if (g('trx')) co.trx = g('trx').value.trim().toUpperCase();
+  };
   const validate = () => {
     const e = {}; if (!co.name.trim()) e.name = 'Enter your full name';
     if (!/^(\+?88)?01[3-9]\d{8}$/.test(co.phone)) e.phone = 'Enter a valid BD mobile number (01XXXXXXXXX)';
-    if (co.address.trim().length < 10) e.address = 'Enter your full address (area, thana, district)'; return e;
-  };
-  const panel = () => {
-    if (step === 1) return `<div class="box"><h3>Review your items</h3>${d.lines.map(l => `<div class="cl"><div class="th2">${l.image ? `<img src="${esc(l.image)}" alt="">` : ''}</div><div class="g"><b>${esc(l.name)}</b><br><small>${tk(l.price)} × ${l.qty}</small></div><b>${tk(l.price * l.qty)}</b></div>`).join('')}</div>
-     <div class="box"><h3>Have a coupon?</h3><div class="row" style="flex-wrap:nowrap"><input id="cp" placeholder="Enter code" value="${esc(co.coupon)}" style="text-transform:uppercase"><button class="btn ghost" id="cpa">Apply</button></div>${d.coupon ? `<p class="okt">Coupon ${esc(d.coupon)} applied: -${tk(d.discount)}</p>` : ''}</div>
-     <div class="row end"><a class="btn ghost" href="#/cart">Back to cart</a><button class="btn" id="nx">Continue</button></div>`;
-    if (step === 2) return `<form class="box" id="af" novalidate><h3>Delivery details</h3><div class="form2">
-     <label class="fld">Full name<input name="name" value="${esc(co.name)}" autocomplete="name"><em data-e="name"></em></label>
-     <label class="fld">Mobile number<input name="phone" value="${esc(co.phone)}" inputmode="tel" autocomplete="tel" placeholder="01XXXXXXXXX"><em data-e="phone"></em></label>
-     <label class="fld full">Delivery area<select name="area"><option value="dhaka" ${co.area === 'dhaka' ? 'selected' : ''}>Inside Dhaka</option><option value="outside" ${co.area === 'outside' ? 'selected' : ''}>Outside Dhaka</option></select></label>
-     <label class="fld full">Full address<textarea name="address" placeholder="House, road, area, thana, district, postal code" autocomplete="street-address">${esc(co.address)}</textarea><em data-e="address"></em></label>
-     <label class="fld full">Delivery note (optional)<input name="note" value="${esc(co.note)}" maxlength="300"></label></div>
-     <div class="row end"><button type="button" class="btn ghost" id="bk">Back</button><button class="btn">Continue</button></div></form>`;
-    return `<div class="box"><div class="row" style="justify-content:space-between"><h3>Delivering to</h3><a href="javascript:void 0" id="ed"><small><u>Edit</u></small></a></div><p style="margin:0"><b>${esc(co.name)}</b> · ${esc(co.phone)}<br>${esc(co.address)}<br><small>${co.area === 'dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}${co.note ? ' · Note: ' + esc(co.note) : ''}</small></p></div>
-     <div class="box"><h3>Payment</h3><p style="margin:0">💵 <b>Cash on Delivery</b><br><small>Pay in cash when your order arrives.</small></p></div>
-     <div class="row end"><button class="btn ghost" id="bk">Back</button><button class="btn" id="po">Place order · ${tk(d.total)}</button></div>`;
+    if (co.email && !/^\S+@\S+\.\S+$/.test(co.email)) e.email = 'Enter a valid email address or leave it blank';
+    if (co.address.trim().length < 10) e.address = 'Enter your full address (area, thana, district)';
+    if (co.pay !== 'cod' && !/^[A-Z0-9]{6,16}$/.test(co.trx)) e.trx = 'Enter the Transaction ID (6-16 letters/numbers)';
+    return e;
   };
   const draw = () => {
-    app.innerHTML = `<h1 class="pt">Checkout</h1><div class="stepper">${['Review', 'Delivery', 'Confirm'].map((s, i) => `<div class="st ${i + 1 < step ? 'done' : i + 1 === step ? 'cur' : ''}"><span>${i + 1 < step ? ic('check') : i + 1}</span><b>${s}</b></div>`).join('<i></i>')}</div>
-    <div class="cow"><div>${panel()}</div><aside class="box sum">${summary()}</aside></div>`;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    const back = () => { step--; draw() };
-    if ($('#bk')) $('#bk').onclick = back;
-    if (step === 1) {
-      $('#nx').onclick = () => { step = 2; draw() };
-      $('#cpa').onclick = async () => { co.coupon = $('#cp').value.trim().toUpperCase(); try { await refresh(); if (d.coupon) toast('Coupon applied') } catch (e) { toast(e.message, 'err') } draw() };
-    }
-    if (step === 2) {
-      $('#af select[name=area]').onchange = async e => { co.area = e.target.value; try { await refresh(); $('.sum').innerHTML = summary() } catch (er) { toast(er.message, 'err') } };
-      $('#af').onsubmit = async e => {
-        e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); Object.assign(co, { name: f.name, phone: f.phone.replace(/[\s-]/g, ''), area: f.area, address: f.address, note: f.note });
-        const er = validate(); $$('[data-e]').forEach(x => x.textContent = er[x.dataset.e] || '');
-        if (Object.keys(er).length) return $(`[name=${Object.keys(er)[0]}]`).focus();
-        try { await refresh(); step = 3; draw() } catch (x) { toast(x.message, 'err') }
-      };
-    }
-    if (step === 3) {
-      $('#ed').onclick = () => { step = 2; draw() };
-      $('#po').onclick = async () => {
-        if (busy) return; busy = true; const b = $('#po'); b.disabled = true; b.textContent = 'Placing order…';
-        try {
-          const r = await api('/api/orders', { method: 'POST', body: { items, name: co.name, phone: co.phone, address: co.address, area: co.area, note: co.note, coupon: co.coupon, idem } });
-          store.set('addr', { name: co.name, phone: co.phone, area: co.area, address: co.address });
-          if (sessionStorage.getItem('buynow')) sessionStorage.removeItem('buynow'); else { cart = []; saveCart() }
-          toast('Order placed successfully 🎉'); location.hash = '#/order/' + r.id;
-        } catch (e) {
-          busy = false; toast(e.message, 'err');
-          try { await refresh() } catch { }
-          if (!d.lines.length) { location.hash = '#/cart'; return }
-          items.splice(0, items.length, ...d.lines.map(l => ({ id: l.id, qty: l.qty }))); if (items === cart) saveCart();
-          step = 1; draw();
-        }
-      };
-    }
+    const m = methods.find(x => x[0] === co.pay) || methods[0];
+    app.innerHTML = `<h1 class="pt">Checkout</h1>
+    <div class="trust"><span>🔒 Secure checkout</span><span>💵 Cash on Delivery</span><span>↩ Easy return</span><span>🚚 Dhaka ${tk(cfg.ship_dhaka)} · Outside ${tk(cfg.ship_outside)}</span></div>
+    <div class="cow"><form id="cf" novalidate>
+     <div class="box"><h3>1. Delivery details</h3><p><small>No account needed. Just tell us where to deliver.</small></p><div class="form2">
+      <label class="fld">Full name<input name="name" value="${esc(co.name)}" autocomplete="name"><em data-e="name"></em></label>
+      <label class="fld">Mobile number<input name="phone" value="${esc(co.phone)}" inputmode="tel" autocomplete="tel" placeholder="01XXXXXXXXX"><em data-e="phone"></em></label>
+      <label class="fld full">Email <small>optional</small><input name="email" type="email" value="${esc(co.email)}" autocomplete="email" placeholder="you@example.com"><em data-e="email"></em></label>
+      <label class="fld full">Delivery area<select name="area"><option value="dhaka" ${co.area === 'dhaka' ? 'selected' : ''}>Inside Dhaka</option><option value="outside" ${co.area === 'outside' ? 'selected' : ''}>Outside Dhaka</option></select></label>
+      <label class="fld full">Full address<textarea name="address" placeholder="House, road, area, thana, district" autocomplete="street-address">${esc(co.address)}</textarea><em data-e="address"></em></label>
+      <label class="fld full">Delivery note (optional)<input name="note" value="${esc(co.note)}" maxlength="300"></label></div></div>
+     <div class="box"><h3>2. Payment</h3><div class="pays">${methods.map(x => `<label class="pay ${co.pay === x[0] ? 'on' : ''}"><input type="radio" name="pay" value="${x[0]}" ${co.pay === x[0] ? 'checked' : ''}>${x[1]}<b>${x[2]}</b>${co.pay === x[0] ? '<span class="pay-select">Selected</span>' : ''}</label>`).join('')}</div>
+      ${co.pay === 'cod' ? '<p class="payinfo">Pay in cash when your order arrives. No advance needed.</p>' : `<div class="payinfo"><p>Send <b>${tk(d.total)}</b> via ${esc(m[2])} (Send Money) to:</p><div class="row"><b class="pn">${esc(m[3])}</b><button type="button" class="btn ghost sm" id="cpy">Copy</button></div><p><small>${esc(cfg.pay_note || '')}</small></p><label class="fld">Transaction ID<input name="trx" value="${esc(co.trx)}" maxlength="16" style="text-transform:uppercase" placeholder="e.g. 9AB3CD45EF"><em data-e="trx"></em></label></div>`}</div>
+     <div class="box"><h3>Coupon</h3><div class="row" style="flex-wrap:nowrap"><input id="cp" placeholder="Enter code" value="${esc(co.coupon)}" style="text-transform:uppercase"><button type="button" class="btn ghost" id="cpa">Apply</button></div>${d.coupon ? `<p class="okt">Coupon ${esc(d.coupon)} applied: -${tk(d.discount)}</p>` : ''}</div></form>
+     <aside class="box sum"><h3>Order summary</h3>${d.lines.map(l => `<div class="sl"><span>${esc(l.name)} × ${l.qty}</span><b>${tk(l.price * l.qty)}</b></div>`).join('')}<hr>
+      <div class="sl"><span>Subtotal</span><b>${tk(d.subtotal)}</b></div>${d.discount ? `<div class="sl ok"><span>Discount (${esc(d.coupon)})</span><b>-${tk(d.discount)}</b></div>` : ''}
+      <div class="sl"><span>Delivery</span><b>${d.shipping ? tk(d.shipping) : 'Free'}</b></div><div class="sl tot"><span>Total</span><b>${tk(d.total)}</b></div>
+      <button class="btn block" id="po" style="margin-top:14px">Confirm order · ${tk(d.total)}</button><p class="sec-note">🔒 Your details are safe. You will get an order ID to track delivery.</p></aside></div>`;
+    const f = $('#cf'); f.onsubmit = e => e.preventDefault();
+    $$('input[name=pay]', f).forEach(r => r.onchange = () => { read(); co.pay = r.value; draw() });
+    f.elements.area.onchange = async () => { read(); try { await refresh() } catch (er) { toast(er.message, 'err') } draw() };
+    $('#cpa').onclick = async () => { read(); co.coupon = $('#cp').value.trim().toUpperCase(); try { await refresh(); if (d.coupon) toast('Coupon applied') } catch (e) { toast(e.message, 'err') } draw() };
+    if ($('#cpy')) $('#cpy').onclick = async () => { try { await navigator.clipboard.writeText(m[3]); toast('Number copied') } catch { toast('Copy failed. Select the number manually.', 'err') } };
+    $('#po').onclick = async () => {
+      if (busy) return; read(); const er = validate(); $$('[data-e]').forEach(x => x.textContent = er[x.dataset.e] || '');
+      const k = Object.keys(er)[0]; if (k) { toast(er[k], 'err'); const el = f.elements[k]; if (el) el.focus(); return }
+      busy = true; const b = $('#po'); b.disabled = true; b.textContent = 'Placing order…';
+      try {
+        const r = await api('/api/orders', { method: 'POST', body: { items, name: co.name, phone: co.phone, email: co.email, address: co.address, area: co.area, note: co.note, coupon: co.coupon, pay: co.pay, trx: co.trx, idem } });
+        store.set('addr', { name: co.name, phone: co.phone, area: co.area, address: co.address });
+        if (sessionStorage.getItem('buynow')) sessionStorage.removeItem('buynow'); else { cart = []; saveCart() }
+        location.hash = '#/order/' + r.id + '?new=1';
+      } catch (e) {
+        busy = false; toast(e.message, 'err');
+        try { await refresh() } catch { }
+        if (!d.lines.length) { location.hash = '#/cart'; return }
+        items.splice(0, items.length, ...d.lines.map(l => ({ id: l.id, qty: l.qty }))); if (items === cart) saveCart();
+        draw();
+      }
+    };
   };
   draw();
-}
-
-function loginPage(mode = 'login') {
+}function loginPage(mode = 'login') {
   if (me) { location.hash = '#/orders'; return }
-  app.innerHTML = `<form class="box auth" id="f" novalidate><h2>${mode === 'login' ? 'Welcome back' : 'Create account'}</h2><p><small>${mode === 'login' ? 'Login to track orders and checkout faster.' : 'Join to place orders and write reviews.'}</small></p>
-   ${mode === 'register' ? '<label class="fld">Full name<input name="name" autocomplete="name"></label><label class="fld">Mobile number<input name="phone" inputmode="tel" placeholder="01XXXXXXXXX" autocomplete="tel"></label>' : ''}
-   <label class="fld">Email<input name="email" type="email" autocomplete="email"></label>
-   <label class="fld">Password<input name="password" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" placeholder="${mode === 'register' ? 'At least 8 characters' : ''}"></label>
+  app.innerHTML = `<form class="box auth" id="f" novalidate><h2>${mode === 'login' ? 'Welcome back' : 'Create account'}</h2><p><small>${mode === 'login' ? 'Login to track orders and manage your account.' : 'Create an account with your name, phone or email, and password.'}</small></p>
+   ${mode === 'register' ? '<label class="fld">Full name<input name="name" autocomplete="name"></label>' : ''}
+   <label class="fld">Phone number or email<input name="identifier" autocomplete="username" placeholder="01XXXXXXXXX or you@example.com"></label>
+   <label class="fld">Password<input name="password" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" placeholder="${mode === 'register' ? 'At least 12 characters' : ''}"></label>
    <button class="btn block" id="sb">${mode === 'login' ? 'Login' : 'Create account'}</button><p class="err" id="e" role="alert"></p>
    <p style="text-align:center;margin:0"><a href="javascript:void 0" id="sw"><u>${mode === 'login' ? 'New here? Create an account' : 'Already have an account? Login'}</u></a></p></form>`;
   $('#sw').onclick = () => loginPage(mode === 'login' ? 'register' : 'login');
@@ -424,19 +435,22 @@ async function orders() {
   $('#lo').onclick = async () => { await api('/api/logout', { method: 'POST' }).catch(() => { }); me = null; paintAcct(); toast('Logged out'); location.hash = '#/' };
 }
 async function orderPage(id) {
-  if (!me) { store.set('next', location.hash); location.hash = '#/login'; return }
-  const t = routeId; const o = await api('/api/orders/' + encodeURIComponent(id)); if (t !== routeId) return;
+  const t = routeId; let o;
+  try { o = await api('/api/orders/' + encodeURIComponent(id)) } catch (e) { if (t === routeId) app.innerHTML = empty('😕', 'Order not found', 'Use Track order with your order ID and phone number.', '<a class="btn" href="#/track">Track order</a>'); return }
+  if (t !== routeId) return;
   const flow = [['Pending', 'Order placed'], ['Confirmed', 'Confirmed'], ['Processing', 'Being prepared'], ['Shipped', 'Shipped'], ['Delivered', 'Delivered']];
   const ev = s => (o.events.find(e => e.status === s) || {}).created;
   const cancelled = o.status === 'Cancelled', idx = flow.findIndex(f => f[0] === o.status);
   const stepsHtml = cancelled
     ? `<div class="ts done"><i>${ic('check')}</i><b>Order placed</b><small>${esc(dt(ev('Pending')))}</small></div><div class="ts bad"><i>${ic('x')}</i><b>Cancelled</b><small>${esc(dt(ev('Cancelled')))}</small></div>`
     : flow.map((f, i) => `<div class="ts ${i < idx || o.status === 'Delivered' ? 'done' : i === idx ? 'cur' : ''}"><i>${i < idx || o.status === 'Delivered' ? ic('check') : ''}</i><b>${f[1]}</b><small>${ev(f[0]) ? esc(dt(ev(f[0]))) : ''}</small></div>`).join('');
-  app.innerHTML = `<div class="crumb"><a href="#/orders">My orders</a> / <span>${esc(o.id)}</span></div><h1 class="pt">Order ${esc(o.id)}</h1>
+  app.innerHTML = `<div class="crumb"><a href="${me ? '#/orders' : '#/track'}">${me ? 'My orders' : 'Track order'}</a> / <span>${esc(o.id)}</span></div>
+  ${Q().q.get('new') ? `<div class="box okbox"><div class="tick">${ic('check')}</div><h2>Thank you! Order confirmed</h2><p>Your order ID is <b>${esc(o.id)}</b>. Save it to track delivery.${o.payment_status === 'Verifying' ? ' We are verifying your payment.' : ''}</p>${String(cfg.whatsapp || '').replace(/\D/g, '') ? `<a class="btn" target="_blank" rel="noopener" href="https://wa.me/${String(cfg.whatsapp).replace(/\D/g, '')}?text=${encodeURIComponent('Hello, my order ID is ' + o.id)}">Confirm on WhatsApp</a>` : ''}</div>` : ''}
+  <h1 class="pt">Order ${esc(o.id)}</h1>
   <div class="cartw"><div><div class="box"><h3>Order progress</h3><div class="tl">${stepsHtml}</div>${o.tracking ? `<hr><p style="margin:0">Tracking number: <b>${esc(o.tracking)}</b></p>` : ''}</div>
   <div class="box"><h3>Items</h3>${o.items.map(i => `<div class="sl"><span>${esc(i.name)} × ${i.qty}</span><b>${tk(i.price * i.qty)}</b></div>`).join('')}</div></div>
   <aside class="box sum"><h3>Summary</h3><div class="sl"><span>Subtotal</span><b>${tk(o.subtotal)}</b></div>${o.discount ? `<div class="sl ok"><span>Discount (${esc(o.coupon)})</span><b>-${tk(o.discount)}</b></div>` : ''}<div class="sl"><span>Delivery</span><b>${o.shipping ? tk(o.shipping) : 'Free'}</b></div><div class="sl tot"><span>Total</span><b>${tk(o.total)}</b></div>
-  <hr><small>Payment</small><p style="margin:0 0 10px"><b>${esc(o.payment)}</b></p><small>Delivery address</small><p style="margin:0 0 10px">${esc(o.name)} · ${esc(o.phone)}<br>${esc(o.address)}</p>
+  <hr><small>Payment</small><p style="margin:0 0 10px"><b>${esc(o.payment)}</b> · ${esc(o.payment_status || '')}${o.trx ? '<br><small>TrxID: ' + esc(o.trx) + '</small>' : ''}</p><small>Delivery address</small><p style="margin:0 0 10px">${esc(o.name)} · ${esc(o.phone)}<br>${esc(o.address)}</p>
   ${['Pending', 'Confirmed'].includes(o.status) ? '<button class="btn ghost block" id="cx">Cancel order</button>' : ''}</aside></div>`;
   if ($('#cx')) $('#cx').onclick = async () => {
     if (!confirm('Cancel this order?')) return;
@@ -456,7 +470,17 @@ function pageStatic(k) {
   app.innerHTML = `<article class="doc box"><h1>${esc(t)}</h1><div class="prose">${esc(cfg[k] || 'This page has not been written yet.')}</div></article>`;
 }
 
-// ---------- router ----------
+function trackPage() {
+  app.innerHTML = `<form class="box auth" id="tf" novalidate><h2>Track your order</h2><p><small>Enter your order ID and the phone number used at checkout.</small></p>
+   <label class="fld">Order ID<input name="id" placeholder="ORD-XXXXXXXX" autocapitalize="characters"></label>
+   <label class="fld">Phone<input name="phone" inputmode="tel" placeholder="01XXXXXXXXX"></label>
+   <button class="btn block" id="tb">Track</button><p class="err" id="te" role="alert"></p></form>`;
+  $('#tf').onsubmit = async e => {
+    e.preventDefault(); const f = e.target, b = $('#tb'); b.disabled = true; $('#te').textContent = '';
+    try { const r = await api('/api/orders/track', { method: 'POST', body: { id: f.elements.id.value, phone: f.elements.phone.value } }); location.hash = '#/order/' + r.id }
+    catch (er) { $('#te').textContent = er.message; b.disabled = false }
+  };
+}// ---------- router ----------
 async function route() {
   clearInterval(sliderT); sug.hidden = true; const t = ++routeId;
   const { parts, q } = Q(), [page, arg] = parts;
@@ -469,7 +493,7 @@ async function route() {
     if (!page) await home(); else if (page === 'shop') await shop(q); else if (page === 'product') await product(arg);
     else if (page === 'cart') await cartPage(); else if (page === 'checkout') await checkout(); else if (page === 'login') loginPage();
     else if (page === 'orders') await orders(); else if (page === 'order') await orderPage(arg); else if (page === 'wishlist') await wishlist();
-    else if (page === 'page') pageStatic(arg); else app.innerHTML = empty('🔍', 'Page not found', 'The page you are looking for does not exist.', '<a class="btn" href="#/">Go home</a>');
+    else if (page === 'track') trackPage(); else if (page === 'page') pageStatic(arg); else app.innerHTML = empty('🔍', 'Page not found', 'The page you are looking for does not exist.', '<a class="btn" href="#/">Go home</a>');
   } catch (e) { if (t === routeId) app.innerHTML = errBox(e.message) }
 }
 addEventListener('hashchange', route);

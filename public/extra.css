@@ -1,0 +1,53 @@
+/* ===== extra.css : calm premium layer (style.css er por load hoy) ===== */
+:root{--primary:#4f46e5;--accent:#f43f5e;--r:16px;
+--grad:linear-gradient(135deg,#4f46e5,#6366f1 60%,#7c6cf5);
+--shadow:0 1px 2px rgba(15,18,34,.04),0 6px 18px rgba(15,18,34,.06);
+--shadow2:0 14px 34px rgba(79,70,229,.16)}
+body{font-family:'Plus Jakarta Sans','Hind Siliguri',system-ui,Segoe UI,Roboto,sans-serif}
+body::before{background:radial-gradient(600px 400px at 8% -5%,rgba(79,70,229,.07),transparent),radial-gradient(500px 400px at 100% 8%,rgba(79,70,229,.04),transparent)}
+
+/* announcement: shanto, chokh e na lage */
+#announce{background:var(--surface2);color:var(--text);border-bottom:1px solid var(--border);font-weight:500}
+#announce button{color:var(--text)}
+
+/* hero + category: halka rong, 3D tilt bondho */
+.hero{background:linear-gradient(135deg,rgba(79,70,229,.08),rgba(99,102,241,.04))}
+.f{background:linear-gradient(135deg,rgba(79,70,229,.9),rgba(124,108,245,.85))}
+.cat3d span{background:linear-gradient(135deg,hsl(var(--h) 60% 62%),hsl(calc(var(--h) + 30) 60% 56%));box-shadow:0 8px 18px hsl(var(--h) 60% 60%/.25);transform:none}
+.card.tilt,.cat3d.tilt{transform:none!important}
+.card,.cat3d{transition:translate .25s,box-shadow .25s}
+.card:hover,.cat3d:hover{translate:0 -3px}
+.card::after{display:none}
+
+/* buttons + product card */
+.btn{box-shadow:0 4px 12px rgba(79,70,229,.2)}
+.btn:hover{box-shadow:0 8px 18px rgba(79,70,229,.28)}
+.qadd{box-shadow:none;width:40px;height:40px}.qadd:hover{transform:scale(1.06)}
+.nm{font-size:14px;font-weight:600}
+.pr b{font-size:16px}
+.bd{font-weight:700}
+
+/* WhatsApp floating button + back-to-top */
+.wafab{position:fixed;right:16px;bottom:96px;width:50px;height:50px;border-radius:50%;background:#25d366;color:#fff;display:grid;place-items:center;font-size:24px;box-shadow:0 8px 20px rgba(37,211,102,.4);z-index:44}
+#up{bottom:158px;right:21px;width:40px;height:40px}
+body.pdp .wafab{bottom:92px}
+body.pdp #up{bottom:150px}
+.wabtn{margin-top:10px}.trust.pt2{margin:10px 0}
+
+/* checkout: kono distraction na. Shudhu form, total, confirm button */
+body.co #cats,body.co .bnav,body.co #announce,body.co #up{display:none}
+body.co .wafab{bottom:84px}
+
+/* mobile */
+@media(max-width:799px){.scene{display:none}.hero{padding:26px 20px}}
+@media(max-width:700px){
+ .fld input,.fld select,.fld textarea,input,select,textarea{font-size:16px}
+}
+@media(max-width:899px){
+ body.co #po{position:fixed;left:14px;right:14px;width:auto;bottom:calc(12px + env(safe-area-inset-bottom));z-index:50;margin:0!important;box-shadow:0 10px 30px rgba(79,70,229,.4)}
+ body.co main,body.co footer{padding-bottom:110px}
+}
+@media(min-width:701px){
+ .wafab,body.pdp .wafab,body.co .wafab{bottom:24px}
+ #up,body.pdp #up{bottom:84px}
+}

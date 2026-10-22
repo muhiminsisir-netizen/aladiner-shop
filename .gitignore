@@ -1,0 +1,8 @@
+node_modules/
+.session-secret
+shop.db*
+uploads/
+.env
+.env.*
+!.env.example
+backups/
