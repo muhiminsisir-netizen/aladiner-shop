@@ -28,7 +28,7 @@ label.f{display:block;font-size:13px;font-weight:600;margin-bottom:12px}label.f>
 .box{background:var(--sf);border:1px solid var(--bd);border-radius:18px;padding:18px;box-shadow:var(--sh);margin-bottom:16px}
 .err{color:var(--dg)}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 #login{min-height:100vh;display:grid;place-items:center;padding:16px}#login form{width:100%;max-width:400px}
-.logo{font-weight:800;font-size:22px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo{font-weight:800;font-size:22px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}.admin-brand{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}.admin-brand.brand-right{flex-direction:row-reverse;justify-content:flex-end}.admin-brand .brand-mark{width:30px;height:30px;background:color-mix(in srgb,var(--sf) var(--brand-opacity,0%),transparent)}.admin-brand .brand-name{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
 #shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
 #side{background:var(--sf);border-right:1px solid var(--bd);padding:18px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
 .nv{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;border:0;background:none;text-align:left;font-weight:600;color:var(--mu);width:100%;transition:.2s}
@@ -64,13 +64,13 @@ table{width:100%;border-collapse:collapse;font-size:14px}th{font-size:12px;text-
 </style>
 </head>
 <body>
-<div id="login" hidden><form class="box" id="lf"><div class="logo">Admin Panel</div><p><small>Sign in to manage your store</small></p>
+<div id="login" hidden><form class="box" id="lf"><div class="logo admin-brand" id="admin-brand-login"><span class="brand-name">Admin Panel</span></div><p><small>Sign in to manage your store</small></p>
   <label class="f">Email<input id="em" type="text" autocomplete="username" required></label>
   <label class="f">Password<input id="pw" type="password" autocomplete="current-password" required></label>
   <button class="btn" style="width:100%">Login</button><p class="err" id="le" role="alert"></p><a href="/"><small>← Back to store</small></a></form></div>
 
 <div id="shell" hidden>
-  <aside id="side"><div class="logo" style="padding:6px 14px 16px">Admin Panel</div>
+  <aside id="side"><div class="logo admin-brand" id="admin-brand" style="padding:6px 14px 16px"><span class="brand-name">Admin Panel</span></div>
     <button class="nv" data-t="dash">📊 Dashboard</button><button class="nv" data-t="prods">📦 Products</button><button class="nv" data-t="ords">🧾 Orders</button>
     <button class="nv" data-t="custs">👥 Customers</button><button class="nv" data-t="cps">🏷️ Coupons</button><button class="nv" data-t="bns">🖼️ Banners</button><button class="nv" data-t="sets">⚙️ Settings</button>
     <div class="sp"></div><button class="nv" id="th">🌓 Toggle theme</button><a class="nv" href="/" target="_blank">🛍️ View store</a><button class="nv" id="lo">🚪 Logout</button></aside>
@@ -100,10 +100,12 @@ const TABS={dash:['Dashboard',dash],prods:['Products',prods],ords:['Orders',ords
 $('#lf').onsubmit=async e=>{e.preventDefault();$('#le').textContent='';
   try{await api('/api/login',{method:'POST',body:{email:$('#em').value,password:$('#pw').value}});await init()}catch(er){$('#le').textContent=er.message}};
 async function init(){
+  const brand=await api('/api/settings').catch(()=>({}));paintAdminBrand(brand);
   const m=await api('/api/me').catch(()=>null);
   if(m&&m.role==='admin'){$('#login').hidden=true;$('#shell').hidden=false;go(cur)}
   else{showLogin();if(m)$('#le').textContent='This account is not an admin. Logout from the store first.'}
 }
+function paintAdminBrand(s={}){const opacity=Math.max(0,Math.min(100,Number(s.logo_bg_opacity)||0));['#admin-brand','#admin-brand-login'].forEach(q=>{const el=$(q);if(!el)return;el.classList.toggle('brand-right',s.logo_position==='right');el.style.setProperty('--brand-opacity',opacity+'%');el.innerHTML=`${s.logo_url?`<span class="brand-mark"><img src="${esc(s.logo_url)}" alt=""></span>`:''}<span class="brand-name">Admin Panel</span>`})}
 $('#lo').onclick=async()=>{await api('/api/logout',{method:'POST'}).catch(()=>{});showLogin()};
 $('#th').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;localStorage.setItem('theme',JSON.stringify(t))};
 $('#burger').onclick=()=>{$('#side').classList.add('open');$('#ov').hidden=false};
@@ -252,6 +254,7 @@ async function bns(){
 async function sets(){
   const s=await fetch('/api/settings').then(r=>r.json());
   const mail=await api('/api/admin/order-email');
+  paintAdminBrand(s);
   const F=(k,l,type='text',h='')=>`<label class="f">${l}${h?` <small>${h}</small>`:''}<input name="${k}" type="${type}" value="${esc(s[k])}"></label>`;
   const T=(k,l)=>`<label class="f full">${l}<textarea name="${k}">${esc(s[k])}</textarea></label>`;
   $('#view').innerHTML=`<form class="box" id="sf" novalidate><div class="g2">
@@ -263,12 +266,19 @@ async function sets(){
    ${T('about','About Us')}${T('shipping_policy','Shipping policy')}${T('return_policy','Return & refund policy')}${T('privacy','Privacy policy')}${T('terms','Terms & conditions')}</div>
    <button class="btn">Save settings</button> <span class="err" id="se"></span></form>
   <form class="box" id="oef" novalidate><h3>Order Email Notifications</h3><p><small>SMTP configuration: <b>${mail.smtpConfigured?'Configured':'Missing or invalid'}</b> · Notifications: <b>${mail.enabled?'Enabled':'Disabled'}</b>${!mail.publicUrlConfigured?' · PUBLIC_URL not set (email links will use localhost)':''}</small></p><label class="f">Recipient email<input type="email" name="recipient" value="${esc(mail.recipient)}" placeholder="orders@example.com" autocomplete="email" required></label><label class="row" style="gap:8px;margin:8px 0 14px"><input type="checkbox" name="enabled" style="width:auto" ${mail.enabled?'checked':''}><b>Enable new order email notifications</b></label><button class="btn">Save email settings</button> <button class="btn gh" type="button" id="oetest" ${!mail.smtpConfigured||!mail.recipient||!mail.enabled?'disabled':''}>Send Test Email</button> <span class="err" id="oee" role="status"></span></form>
-  <form class="box" id="pwf" novalidate><b>Change admin password</b><div class="g2" style="margin-top:10px"><label class="f">Current password<input name="current" type="password" autocomplete="current-password"></label><label class="f">New password <small>min 14 characters</small><input name="next" type="password" autocomplete="new-password"></label></div><button class="btn">Change password</button> <span class="err" id="pe2"></span></form>`;
+  <form class="box" id="pwf" novalidate><b>Change admin password</b><div class="g2" style="margin-top:10px"><label class="f">Current password<input name="current" type="password" autocomplete="current-password"></label><label class="f">New password <small>min 14 characters</small><input name="next" type="password" autocomplete="new-password"></label></div><button class="btn">Change password</button> <span class="err" id="pe2"></span></form>
+  <form class="box" id="brandf" novalidate><h3>Website & Admin Logo</h3><p><small>এই section থেকে logo সরাসরি upload ও apply হবে; মূল Settings-এর Save button আর চাপতে হবে না। JPG, PNG বা WebP; সর্বোচ্চ 3MB।</small></p><div class="row" style="align-items:center;gap:18px;flex-wrap:wrap"><label class="f" style="min-width:230px;flex:1">Logo image<input id="brand-file" type="file" accept="image/jpeg,image/png,image/webp"></label><div id="brand-preview" class="admin-brand ${s.logo_position==='right'?'brand-right':''}" style="--brand-opacity:${Math.max(0,Math.min(100,Number(s.logo_bg_opacity)||0))}%">${s.logo_url?`<span class="brand-mark"><img src="${esc(s.logo_url)}" alt=""></span>`:''}<span class="brand-name">Admin Panel</span></div></div><div class="g2" style="margin-top:8px"><label class="f">Logo position<select name="logo_position"><option value="left" ${s.logo_position!=='right'?'selected':''}>Left of the name</option><option value="right" ${s.logo_position==='right'?'selected':''}>Right of the name</option></select></label><label class="f">Logo background opacity: <output id="logo-opacity-value">${Math.max(0,Math.min(100,Number(s.logo_bg_opacity)||0))}%</output><input id="logo-opacity" name="logo_bg_opacity" type="range" min="0" max="100" step="1" value="${Math.max(0,Math.min(100,Number(s.logo_bg_opacity)||0))}"></label></div><button class="btn" type="button" id="brand-upload">Upload & Apply Logo</button> <button class="btn gh" type="submit">Save logo position & background</button> <span id="brand-msg" class="err" role="status"></span></form>`;
   $('#pwf').onsubmit=async e=>{e.preventDefault();const f=e.target;$('#pe2').textContent='';try{await api('/api/admin/password',{method:'POST',body:{current:f.elements.current.value,next:f.elements.next.value}});toast('Password changed');f.reset()}catch(er){$('#pe2').textContent=er.message}};
+  const paintLogoPreview=(url,position,opacity)=>{const preview=$('#brand-preview');preview.classList.toggle('brand-right',position==='right');preview.style.setProperty('--brand-opacity',Math.max(0,Math.min(100,+opacity||0))+'%');preview.innerHTML=`${url?`<span class="brand-mark"><img src="${esc(url)}" alt=""></span>`:''}<span class="brand-name">Admin Panel</span>`;paintAdminBrand({...s,logo_url:url,logo_position:position,logo_bg_opacity:opacity})};
+  const logoError=er=>er.message==='Not found'?'এই server-এ logo upload route পাওয়া যায়নি। Server বন্ধ করে project folder থেকে npm start চালান, তারপর Ctrl+F5 দিন।':er.message;
+  $('#brand-upload').onclick=async()=>{const file=$('#brand-file').files[0],msg=$('#brand-msg'),button=$('#brand-upload');msg.textContent='';if(!file){msg.textContent='আগে একটি logo image বেছে নিন।';return}const fd=new FormData();fd.append('intent','upload');fd.append('image',file);fd.append('logo_position',$('[name=logo_position]').value);fd.append('logo_bg_opacity',$('#logo-opacity').value);button.disabled=true;try{const r=await api('/api/admin/logo',{method:'POST',body:fd});paintLogoPreview(r.url,r.logo_position,r.logo_bg_opacity);$('#brand-file').value='';msg.className='okt';msg.textContent='Logo সফলভাবে upload ও apply হয়েছে। Storefront-এ Ctrl+F5 দিন।'}catch(er){msg.className='err';msg.textContent=logoError(er)}finally{button.disabled=false}};
+  $('#brandf').onsubmit=async e=>{e.preventDefault();const msg=$('#brand-msg'),button=$('[type=submit]',e.target),fd=new FormData();fd.append('intent','settings');fd.append('logo_position',$('[name=logo_position]').value);fd.append('logo_bg_opacity',$('#logo-opacity').value);msg.textContent='';button.disabled=true;try{const r=await api('/api/admin/logo',{method:'POST',body:fd});paintLogoPreview(r.url,r.logo_position,r.logo_bg_opacity);msg.className='okt';msg.textContent='Logo display settings saved.'}catch(er){msg.className='err';msg.textContent=logoError(er)}finally{button.disabled=false}};
+  $('#logo-opacity').oninput=e=>{const v=Math.max(0,Math.min(100,+e.target.value||0));$('#logo-opacity-value').value=v+'%';$('#brand-preview').style.setProperty('--brand-opacity',v+'%')};
+  $('[name=logo_position]').onchange=e=>$('#brand-preview').classList.toggle('brand-right',e.target.value==='right');
   $('#oef').onsubmit=async e=>{e.preventDefault();$('#oee').textContent='';const f=e.target;try{await api('/api/admin/order-email',{method:'POST',body:{recipient:f.elements.recipient.value,enabled:f.elements.enabled.checked}});toast('Order email settings saved');sets()}catch(er){$('#oee').textContent=er.message}};
   $('#oetest').onclick=async()=>{const b=$('#oetest');b.disabled=true;$('#oee').textContent='Sending test…';try{const r=await api('/api/admin/order-email/test',{method:'POST',body:{}});$('#oee').textContent=r.message;$('#oee').className='okt';b.disabled=false}catch(er){$('#oee').textContent=er.message;$('#oee').className='err';b.disabled=false}};
   $('#sf').onsubmit=async e=>{e.preventDefault();$('#se').textContent='';
-    try{await api('/api/admin/settings',{method:'POST',body:Object.fromEntries(new FormData(e.target))});toast('Settings saved')}catch(er){$('#se').textContent=er.message}};
+    try{await api('/api/admin/settings',{method:'POST',body:Object.fromEntries(new FormData(e.target))});toast('Settings saved');sets()}catch(er){$('#se').textContent=er.message}};
 }
 function invoice(o){const w=window.open('','_blank');if(!w)return toast('Allow popups to print','err');
 w.document.write(`<meta charset="utf-8"><title>${esc(o.id)}</title><body style="font-family:sans-serif;max-width:680px;margin:24px auto;color:#111"><h2>Invoice ${esc(o.id)}</h2><p>${esc(dt(o.created))}<br><b>${esc(o.name)}</b> · ${esc(o.phone)}<br>${esc(o.address)}</p><table style="width:100%;border-collapse:collapse">${o.items.map(i=>`<tr><td style="padding:6px 0;border-bottom:1px solid #ddd">${esc(i.name)} × ${i.qty}</td><td style="text-align:right;border-bottom:1px solid #ddd">${tk(i.price*i.qty)}</td></tr>`).join('')}</table><p style="text-align:right">Subtotal ${tk(o.subtotal)}<br>${o.discount?'Discount -'+tk(o.discount)+'<br>':''}Delivery ${tk(o.shipping)}<br><b style="font-size:20px">Total ${tk(o.total)}</b><br>${esc(o.payment)} · ${esc(o.payment_status)}</p>`);w.document.close();w.focus();w.print()}

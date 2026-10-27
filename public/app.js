@@ -79,14 +79,20 @@ function paintAcct() {
 }
 function paintCfg() {
   document.title = cfg.store_name || 'Shop';
-  $$('.sname').forEach(e => e.textContent = cfg.store_name || 'Shop');
+  const logoName = cfg.store_name || 'Shop', logoOpacity = Math.max(0, Math.min(100, Number(cfg.logo_bg_opacity) || 0));
+  $$('.sname').forEach(e => {
+    e.classList.toggle('brand-right', cfg.logo_position === 'right');
+    e.style.setProperty('--brand-opacity', logoOpacity + '%');
+    e.innerHTML = `${cfg.logo_url ? `<span class="brand-mark"><img src="${esc(cfg.logo_url)}" alt=""></span>` : ''}<span class="brand-name">${esc(logoName)}</span>`;
+    e.setAttribute('aria-label', logoName);
+  });
   const a = $('#announce');
   if (cfg.announcement && !sessionStorage.getItem('ann')) {
     a.innerHTML = `<span>${esc(cfg.announcement)}</span><button aria-label="Close">${ic('x')}</button>`; a.hidden = false;
     $('button', a).onclick = () => { sessionStorage.setItem('ann', 1); a.hidden = true };
   } else a.hidden = true;
   const wa = String(cfg.whatsapp || '').replace(/\D/g, ''), link = (u, l) => /^https?:\/\//i.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${l}</a>` : '';
-  $('#foot').innerHTML = `<div class="fw"><div><div class="logo">${esc(cfg.store_name)}</div><p>${esc((cfg.about || '').slice(0, 140))}</p></div>
+  $('#foot').innerHTML = `<div class="fw"><div><div class="logo foot-brand ${cfg.logo_position === 'right' ? 'brand-right' : ''}" style="--brand-opacity:${logoOpacity}%">${cfg.logo_url ? `<span class="brand-mark"><img src="${esc(cfg.logo_url)}" alt=""></span>` : ''}<span class="brand-name">${esc(logoName)}</span></div><p>${esc((cfg.about || '').slice(0, 140))}</p></div>
   <div><h4>Help</h4><a href="#/track">Track order</a>${PAGES.map(([k, t]) => `<a href="#/page/${k}">${t}</a>`).join('')}</div>
   <div><h4>Contact</h4>${cfg.phone ? `<a href="tel:${esc(cfg.phone)}">${esc(cfg.phone)}</a>` : ''}${wa ? `<a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${link(cfg.facebook, 'Facebook')}${link(cfg.instagram, 'Instagram')}${cfg.address ? `<span>${esc(cfg.address)}</span>` : ''}${cfg.hours ? `<span>${esc(cfg.hours)}</span>` : ''}${!cfg.phone && !wa && !cfg.address ? '<span>Contact details coming soon</span>' : ''}</div>
   <div><h4>Payment</h4><span>Cash on Delivery</span></div></div>
@@ -98,7 +104,19 @@ function paintCats() {
     cats.map(c => `<a href="#/shop?category=${encodeURIComponent(c.category)}" class="${onShop && cur === c.category ? 'on' : ''}">${esc(c.category)}</a>`).join('');
 }
 $('#logo').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-addEventListener('scroll', () => { $('#hdr').classList.toggle('sc', scrollY > 8); $('#up').hidden = scrollY < 600 }, { passive: true });
+let headerLastY = Math.max(0, scrollY), headerFrame = false;
+addEventListener('scroll', () => {
+  if (headerFrame) return; headerFrame = true;
+  requestAnimationFrame(() => {
+    const y = Math.max(0, scrollY), delta = y - headerLastY, hdr = $('#hdr');
+    hdr.classList.toggle('sc', y > 8);
+    if (y <= 12) hdr.classList.remove('hdr-hidden');
+    else if (delta < -2) hdr.classList.remove('hdr-hidden');
+    else if (delta > 3) hdr.classList.add('hdr-hidden');
+    headerLastY = y; headerFrame = false;
+  });
+  $('#up').hidden = scrollY < 600;
+}, { passive: true });
 $('#up').onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 document.addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.outerHTML = '<span class="noimg">🛍️</span>' }, true);
 

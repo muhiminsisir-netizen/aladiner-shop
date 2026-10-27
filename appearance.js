@@ -9,6 +9,7 @@ module.exports = (app, db, X) => {
    ['font_weight', 'INTEGER DEFAULT 700'], ['align', "TEXT DEFAULT 'left'"], ['pos', "TEXT DEFAULT 'bottom'"], ['sort', 'INTEGER DEFAULT 0']].forEach(([c, d]) => addCol(c, d));
 
   const AP = { default_show: true, default_when: 'fallback', default_title: '', default_subtitle: '', default_btn: 'Shop now', default_link: '#/shop', default_image: '',
+    default_banner_color: '#123569', default_texture: 'grid', default_texture_color: '#9bdcff', default_light_color: '#65d9ff', default_text_color: '#ffffff', default_box_text_color: '#17346e',
     interval: 3, svc_open: false, glow: true, glow_intensity: 6, glow_blur: 28, glow_opacity: 0.45, glow_dur: 300, glow_color: '#4f46e5' };
   const getAP = () => { let s = {}; try { s = JSON.parse((db.prepare("SELECT value FROM settings WHERE key='appearance'").get() || {}).value || '{}'); } catch { } return { ...AP, ...s }; };
   const putAP = o => db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)').run('appearance', JSON.stringify(o));
@@ -26,6 +27,12 @@ module.exports = (app, db, X) => {
     if ('default_subtitle' in b) o.default_subtitle = txt(b.default_subtitle, 200);
     if ('default_btn' in b) o.default_btn = txt(b.default_btn, 30);
     if ('default_link' in b) o.default_link = link(b.default_link);
+    if ('default_banner_color' in b && hex(b.default_banner_color)) o.default_banner_color = String(b.default_banner_color).trim();
+    if ('default_texture' in b) o.default_texture = ['none', 'grid', 'diagonal', 'orbit'].includes(b.default_texture) ? b.default_texture : 'grid';
+    if ('default_texture_color' in b && hex(b.default_texture_color)) o.default_texture_color = String(b.default_texture_color).trim();
+    if ('default_light_color' in b && hex(b.default_light_color)) o.default_light_color = String(b.default_light_color).trim();
+    if ('default_text_color' in b && hex(b.default_text_color)) o.default_text_color = String(b.default_text_color).trim();
+    if ('default_box_text_color' in b && hex(b.default_box_text_color)) o.default_box_text_color = String(b.default_box_text_color).trim();
     if ('interval' in b) o.interval = num(b.interval, 2, 10, 3);
     if ('svc_open' in b) o.svc_open = bool(b.svc_open);
     if ('glow' in b) o.glow = bool(b.glow);

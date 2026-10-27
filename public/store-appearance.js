@@ -1,7 +1,7 @@
 'use strict';
 /* store-appearance.js : index.html er shesh e load hobe. Banner slider, collapsible service section, product-card glow. */
 (() => {
-  const root = document.documentElement, DEF = { default_show: true, default_when: 'fallback', default_title: '', default_subtitle: '', default_btn: 'Shop now', default_link: '#/shop', default_image: '', interval: 3, svc_open: false, glow: true, glow_intensity: 6, glow_blur: 28, glow_opacity: .45, glow_dur: 300, glow_color: '#4f46e5' };
+  const root = document.documentElement, DEF = { default_show: true, default_when: 'fallback', default_title: '', default_subtitle: '', default_btn: 'Shop now', default_link: '#/shop', default_image: '', default_banner_color: '#123569', default_texture: 'grid', default_texture_color: '#9bdcff', default_light_color: '#65d9ff', default_text_color: '#ffffff', default_box_text_color: '#17346e', interval: 3, svc_open: false, glow: true, glow_intensity: 6, glow_blur: 28, glow_opacity: .45, glow_dur: 300, glow_color: '#4f46e5' };
   let ap = { ...DEF }; try { ap = { ...DEF, ...JSON.parse(localStorage.getItem('ap') || '{}') }; } catch { }
   const vars = () => {
     root.classList.toggle('ap-glow', !!ap.glow); const s = root.style;
@@ -37,10 +37,11 @@
   // ---- banner slider ----
   const FS = { s: 'clamp(18px,3vw,26px)', m: 'clamp(22px,3.8vw,38px)', l: 'clamp(28px,5.5vw,56px)' }, JP = { top: 'flex-start', center: 'center', bottom: 'flex-end' }, JA = { left: 'flex-start', center: 'center', right: 'flex-end' };
   const slideHTML = (b, i) => {
-    const st = `--tc:${esc(b.text_color || '#ffffff')};--fs:${FS[b.font_size] || FS.m};--fw:${+b.font_weight || 700};--ta:${b.align || 'left'};--ja:${JA[b.align] || 'flex-start'};--jp:${JP[b.pos] || 'flex-end'}`;
+    const st = `--tc:${esc(b.text_color || '#ffffff')};--fs:${FS[b.font_size] || FS.m};--fw:${+b.font_weight || 700};--ta:${b.align || 'left'};--ja:${JA[b.align] || 'flex-start'};--jp:${JP[b.pos] || 'flex-end'};--ap-base:${esc(b.default_banner_color || '#123569')};--ap-texture-color:${esc(b.default_texture_color || '#9bdcff')};--ap-light-color:${esc(b.default_light_color || '#65d9ff')};--ap-box-text-color:${esc(b.default_box_text_color || '#17346e')}`;
     const img = b.image ? `<img src="${esc(b.image)}" alt="" ${i ? 'loading="lazy"' : ''}>` : '';
     const cap = `<div class="ap-cap">${b.title ? `<h2>${esc(b.title)}</h2>` : ''}${b.subtitle ? `<span class="ap-sub">${esc(b.subtitle)}</span>` : ''}${b.description ? `<p>${esc(b.description)}</p>` : ''}${b.btn_text && b.link ? `<a class="btn sm" href="${esc(b.link)}">${esc(b.btn_text)}</a>` : ''}</div>`;
-    const cls = 'ap-slide' + (b.image ? '' : ' noimg') + (b.default_banner ? ' ap-default' : '');
+    const texture = ['none', 'grid', 'diagonal', 'orbit'].includes(b.default_texture) ? b.default_texture : 'grid';
+    const cls = 'ap-slide' + (b.image ? '' : ' noimg') + (b.default_banner ? ` ap-default ap-texture-${texture}` : '');
     const art = b.default_banner && !b.image ? `<div class="ap-diorama" aria-hidden="true"><div class="ap-box-glow"></div><div class="ap-cube-scene"><div class="ap-cube">
       <div class="ap-cube-face front"><svg class="ap-shop-symbol" viewBox="0 0 64 64"><path d="M12 24h40l-4 32H16l-4-32Z"/><path d="M22 26v-7a10 10 0 0 1 20 0v7"/><path d="m25 40 5 5 10-11"/></svg><b>${esc(cfg.store_name || 'YOUR STORE')}</b><small>SHOP · DISCOVER · ENJOY</small><i>✦ PREMIUM PICKS</i></div>
       <div class="ap-cube-face right"><span class="ap-mini-icons"><b>✦</b><b>🛍</b><b>★</b></span><strong>FIND YOUR<br>FAVOURITES</strong><small>CURATED FOR YOU</small></div>
@@ -74,7 +75,7 @@
     }
     return el;
   }
-  const defSlide = () => ({ default_banner: true, title: ap.default_title || cfg.store_name || 'Welcome', subtitle: ap.default_subtitle || 'Quality products, simple checkout and Cash on Delivery', btn_text: ap.default_btn, link: ap.default_link, image: ap.default_image, text_color: '#ffffff', font_size: 'l', font_weight: 800, align: 'left', pos: 'center' });
+  const defSlide = () => ({ default_banner: true, title: ap.default_title || cfg.store_name || 'Welcome', subtitle: ap.default_subtitle || 'Quality products, simple checkout and Cash on Delivery', btn_text: ap.default_btn, link: ap.default_link, image: ap.default_image, text_color: ap.default_text_color || '#ffffff', default_banner_color: ap.default_banner_color, default_texture: ap.default_texture, default_texture_color: ap.default_texture_color, default_light_color: ap.default_light_color, default_box_text_color: ap.default_box_text_color, font_size: 'l', font_weight: 800, align: 'left', pos: 'center' });
   const pick = bn => { const d = ap.default_show !== false; if (bn.length) return d && ap.default_when === 'always' ? [defSlide(), ...bn] : bn; return d ? [defSlide()] : []; };
   const welcome = () => { const s = document.createElement('section'); s.className = 'ap-welcome'; s.innerHTML = `<h1>${esc(cfg.store_name || 'Shop')}</h1><p>Browse our latest products below.</p>`; return s; };
 
@@ -88,6 +89,32 @@
     set(!!ap.svc_open); h.onclick = () => set(!w.classList.contains('open'));
   }
 
+  // Keep the banner pinned behind the first discovery block; the block rises over it.
+  function stageHome() {
+    const app = document.getElementById('app'), slider = app && app.querySelector(':scope > .ap-slider');
+    if (!slider || slider.closest('.ap-home-stage')) return;
+    const handle = slider.nextElementSibling, svc = handle && handle.nextElementSibling;
+    if (!handle || !handle.classList.contains('ap-handle') || !svc || !svc.classList.contains('ap-svc')) return;
+    const stage = document.createElement('div'); stage.className = 'ap-home-stage';
+    const firstGrid = svc.nextElementSibling && svc.nextElementSibling.classList.contains('sec') ? svc.nextElementSibling : null;
+    app.insertBefore(stage, slider); stage.append(slider, handle, svc); if (firstGrid) stage.append(firstGrid);
+  }
+  let scrollTick = false;
+  function bannerScroll() {
+    if (scrollTick) return; scrollTick = true;
+    requestAnimationFrame(() => {
+      scrollTick = false;
+      const stage = document.querySelector('#app>.ap-home-stage'), slide = stage && stage.querySelector('.ap-slider');
+      if (!stage || !slide) return;
+      const rect = stage.getBoundingClientRect(), span = Math.max(1, stage.offsetHeight - innerHeight * .45);
+      const p = Math.max(0, Math.min(1, (Math.max(0, -rect.top) + Math.max(0, innerHeight - rect.bottom)) / span));
+      stage.style.setProperty('--ap-scroll-blur', `${(p * 12).toFixed(1)}px`);
+      stage.style.setProperty('--ap-scroll-dim', `${(1 - p * .34).toFixed(3)}`);
+      stage.style.setProperty('--ap-scroll-progress', p.toFixed(3));
+    });
+  }
+  addEventListener('scroll', bannerScroll, { passive: true }); addEventListener('resize', bannerScroll);
+
   let busy = false, failed = false;
   async function enh() {
     const h = location.hash; if (h && h !== '#' && h !== '#/') return;
@@ -98,6 +125,7 @@
       catch { failed = true; document.body.classList.remove('ap-on'); } finally { busy = false; }
     }
     const f2 = document.querySelector('#app>.home-discovery'); if (f2 && !f2.dataset.ap) collapse(f2);
+    stageHome(); bannerScroll();
   }
   addEventListener('hashchange', () => { failed = false; document.body.classList.add('ap-on'); });
   new MutationObserver(enh).observe(document.getElementById('app'), { childList: true, subtree: true });

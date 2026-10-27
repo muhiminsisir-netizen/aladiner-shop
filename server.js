@@ -56,6 +56,7 @@ const DEF = {
   phone: '', whatsapp: '', facebook: '', instagram: '', address: '', hours: '',
   bkash: '', nagad: '', rocket: '', bkash_enabled: '', nagad_enabled: '', rocket_enabled: '', pay_note: 'Send Money to the number above, then enter your Transaction ID at checkout.',
   about: 'Welcome to our shop. Edit this text from Admin > Settings.',
+  logo_url: '', logo_position: 'left', logo_bg_opacity: '0',
   shipping_policy: '', return_policy: '', privacy: '', terms: ''
 };
 Object.assign(DEF, { c_deep: '#0B2A5B', c_forest: '#1D4ED8', c_sage: '#3B82F6', c_light: '#BFDBFE', c_brown: '#475569', c_tan: '#94A3B8', c_cream: '#DBEAFE', c_gold: '#F59E0B', o_bg: '', o_surface: '', o_text: '', o_muted: '', o_primary: '', o_accent: '', o_danger: '', o_ann_bg: '', o_ann_tx: '', o_foot_bg: '', o_foot_tx: '' });
@@ -404,6 +405,20 @@ const drop = req => files(req).forEach(f => fs.unlink(f.path, () => { }));
 let catalog;
 const checkImgs = (req, res, next) => files(req).every(sig) ? next() : (drop(req), res.status(400).json({ error: 'Only real JPG/PNG/WebP images are allowed' }));
 catalog = require('./features')(app, db, { need, admin, upload, checkImgs, drop });
+app.post('/api/admin/logo', need, admin, upload.single('image'), checkImgs, (req, res) => {
+  const b = req.body || {}, intent = b.intent === 'settings' ? 'settings' : 'upload';
+  if (intent === 'upload' && !req.file) return res.status(400).json({ error: 'Choose a valid JPG, PNG or WebP image under 3MB.' });
+  if ('logo_position' in b && !['left', 'right'].includes(String(b.logo_position))) { if (req.file) drop(req); return res.status(400).json({ error: 'Choose left or right for logo position.' }); }
+  if ('logo_bg_opacity' in b && (!Number.isFinite(+b.logo_bg_opacity) || +b.logo_bg_opacity < 0 || +b.logo_bg_opacity > 100)) { if (req.file) drop(req); return res.status(400).json({ error: 'Logo background opacity must be between 0 and 100.' }); }
+  const url = req.file ? '/uploads/' + req.file.filename : null;
+  const put = db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+  db.transaction(() => {
+    if (url) put.run('logo_url', url);
+    if ('logo_position' in b) put.run('logo_position', String(b.logo_position));
+    if ('logo_bg_opacity' in b) put.run('logo_bg_opacity', String(Math.round(+b.logo_bg_opacity)));
+  })();
+  res.json({ ok: 1, url: url || db.prepare("SELECT value FROM settings WHERE key='logo_url'").get()?.value || '', logo_position: b.logo_position || db.prepare("SELECT value FROM settings WHERE key='logo_position'").get()?.value || 'left', logo_bg_opacity: b.logo_bg_opacity ?? db.prepare("SELECT value FROM settings WHERE key='logo_bg_opacity'").get()?.value ?? '0' });
+});
 const pf = b => [String(b.name || '').trim().slice(0, 200), String(b.category || '').trim().slice(0, 60), String(b.brand || '').trim().slice(0, 60), catalog.sku(b.sku, b.name, b.id),
   String(b.description || '').slice(0, 5000), +b.price, (+b.old_price > +b.price) ? +b.old_price : null, Math.floor(+b.stock)];
 const validP = b => String(b.name || '').trim() && Number.isFinite(+b.price) && +b.price > 0 &&
@@ -573,6 +588,9 @@ const NUM = ['ship_dhaka', 'ship_outside', 'free_ship'];
 app.post('/api/admin/settings', need, admin, (req, res) => {
   const b = req.body || {};
   for (const k of NUM) if (k in b && (!(+b[k] >= 0) || +b[k] > 100000)) return res.status(400).json({ error: 'Shipping values must be valid numbers' });
+  if ('logo_position' in b && !['left', 'right'].includes(String(b.logo_position))) return res.status(400).json({ error: 'Choose left or right for logo position.' });
+  if ('logo_bg_opacity' in b && (!Number.isFinite(+b.logo_bg_opacity) || +b.logo_bg_opacity < 0 || +b.logo_bg_opacity > 100)) return res.status(400).json({ error: 'Logo background opacity must be between 0 and 100.' });
+  if ('logo_url' in b && b.logo_url && !/^\/uploads\/[a-f0-9]{24}\.(?:jpg|png|webp)$/i.test(String(b.logo_url))) return res.status(400).json({ error: 'Upload the logo image using the logo upload control.' });
   for (const k of ['facebook', 'instagram']) if (b[k] && !/^https?:\/\//i.test(String(b[k]).trim())) return res.status(400).json({ error: 'Facebook/Instagram link must start with https://' });
   for (const k of ['bkash', 'nagad', 'rocket']) {
     if (b[k] && !PHONE.test(np(String(b[k]).trim()))) return res.status(400).json({ error: k + ' number must be a valid BD number (01XXXXXXXXX)' });
@@ -588,6 +606,8 @@ app.post('/api/admin/settings', need, admin, (req, res) => {
       if (k === 'whatsapp') v = v.replace(/[^\d]/g, '');
       if (k === 'bkash' || k === 'nagad' || k === 'rocket') v = np(v);
       if (NUM.includes(k)) v = String(+v);
+      if (k === 'logo_bg_opacity') v = String(Math.round(+v));
+      if (k === 'logo_position') v = v === 'right' ? 'right' : 'left';
       if (k === 'store_name' && !v) v = 'My Shop';
       up.run(k, v);
     }

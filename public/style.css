@@ -17,10 +17,13 @@ h1,h2,h3,h4{letter-spacing:-.3px}
 /* header */
 #announce{background:var(--grad);color:#fff;text-align:center;font-size:13px;padding:8px 40px;position:relative;font-weight:600}
 #announce button{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:#fff;padding:4px;display:grid}
-.hdr{position:sticky;top:0;z-index:40;background:var(--glass);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border-bottom:1px solid var(--border);transition:box-shadow .3s}
+.hdr{position:sticky;top:0;z-index:40;background:var(--glass);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border-bottom:1px solid var(--border);transform:translateY(0);transition:transform .22s ease,box-shadow .3s;will-change:transform}
+.hdr.hdr-hidden{transform:translateY(calc(-100% - 2px));pointer-events:none}
 .hdr.sc{box-shadow:var(--shadow)}
 .top{display:flex;align-items:center;gap:10px;max-width:1280px;margin:auto;padding:10px 14px}
 .logo{font-weight:800;font-size:24px;letter-spacing:-.8px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+.sname{display:inline-flex;align-items:center;gap:8px;flex:none}.sname.brand-right,.foot-brand.brand-right{flex-direction:row-reverse}.brand-mark{width:34px;height:34px;flex:none;display:grid;place-items:center;padding:3px;border-radius:9px;background:color-mix(in srgb,var(--surface) var(--brand-opacity,0%),transparent);overflow:hidden}.brand-mark img{display:block;width:100%;height:100%;object-fit:contain}.brand-name{min-width:0}
+.logo .brand-name{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .search{position:relative;flex:1;min-width:0}
 .search input{width:100%;padding:11px 42px 11px 44px;border-radius:999px;border:1px solid var(--border);background:var(--surface);outline:0;transition:.2s}
 .search input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(99,102,241,.16)}

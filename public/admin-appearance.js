@@ -20,6 +20,14 @@
       <label class="f">Slide interval (seconds) <small>2 to 10</small><input id="dint" type="number" min="2" max="10" step="0.5" value="${A.interval}"></label>
       <label class="f">Title<input id="dtit" value="${esc(A.default_title)}" maxlength="100" placeholder="Store name"></label><label class="f">Subtitle<input id="dsub" value="${esc(A.default_subtitle)}" maxlength="200"></label>
       <label class="f">Button text<input id="dbtn" value="${esc(A.default_btn)}" maxlength="30"></label><label class="f">Button link<input id="dlnk" value="${esc(A.default_link)}"></label>
+      <div class="full" style="border:1px solid var(--bd);border-radius:14px;padding:14px"><b>Default banner style</b><p><small>নিজের পছন্দমতো banner-এর base color, texture, cinematic light এবং লেখা বদলান।</small></p><div class="g2">
+       <label class="f">Banner color<input id="dcolor" type="color" value="${esc(A.default_banner_color || '#123569')}" style="height:42px;padding:3px"></label>
+       <label class="f">Texture design<select id="dtexture"><option value="none">None</option><option value="grid">Soft grid</option><option value="diagonal">Diagonal light</option><option value="orbit">Orbit rings</option></select></label>
+       <label class="f">Texture color<input id="dtexturecolor" type="color" value="${esc(A.default_texture_color || '#9bdcff')}" style="height:42px;padding:3px"></label>
+       <label class="f">Cinematic light color<input id="dlight" type="color" value="${esc(A.default_light_color || '#65d9ff')}" style="height:42px;padding:3px"></label>
+       <label class="f">Banner title color<input id="dtextcolor" type="color" value="${esc(A.default_text_color || '#ffffff')}" style="height:42px;padding:3px"></label>
+       <label class="f">Shop box lettering color<input id="dboxtextcolor" type="color" value="${esc(A.default_box_text_color || '#17346e')}" style="height:42px;padding:3px"></label>
+      </div></div>
       <label class="f full">Image <small>optional · max 3MB</small><input id="dimg" type="file" accept="${IMG}"></label></div>
      ${A.default_image ? `<div class="row" style="margin-bottom:10px"><img class="th" src="${esc(A.default_image)}" alt=""><button class="btn gh sm" id="drm">Remove image</button></div>` : ''}
      <label class="row" style="gap:8px;margin:6px 0 12px"><input type="checkbox" id="dsvc" style="width:auto" ${A.svc_open ? 'checked' : ''}> Homepage service section (Delivery etc.) starts expanded</label>
@@ -27,11 +35,12 @@
      <div class="row" style="margin-bottom:12px"><b>Promo banners</b><span style="flex:1"></span><button class="btn" id="badd">+ Add banner</button></div>
      <div class="box" id="blist">${rows || '<p><small>No promo banners yet.</small></p>'}</div>`;
     $('#dwhen').value = A.default_when;
+    $('#dtexture').value = A.default_texture || 'grid';
     $('#dsave').onclick = async () => {
       const er = $('#derr'), sb = $('#dsave'); er.textContent = ''; sb.disabled = true;
       try {
         const f = $('#dimg').files[0]; if (big(f)) throw new Error('Image must be under 3MB');
-        await api('/api/admin/appearance', { method: 'POST', body: { default_show: $('#dshow').checked, default_when: $('#dwhen').value, interval: $('#dint').value, default_title: $('#dtit').value, default_subtitle: $('#dsub').value, default_btn: $('#dbtn').value, default_link: $('#dlnk').value, svc_open: $('#dsvc').checked } });
+        await api('/api/admin/appearance', { method: 'POST', body: { default_show: $('#dshow').checked, default_when: $('#dwhen').value, interval: $('#dint').value, default_title: $('#dtit').value, default_subtitle: $('#dsub').value, default_btn: $('#dbtn').value, default_link: $('#dlnk').value, svc_open: $('#dsvc').checked, default_banner_color: $('#dcolor').value, default_texture: $('#dtexture').value, default_texture_color: $('#dtexturecolor').value, default_light_color: $('#dlight').value, default_text_color: $('#dtextcolor').value, default_box_text_color: $('#dboxtextcolor').value } });
         if (f) { const fd = new FormData(); fd.append('image', f); await api('/api/admin/appearance/image', { method: 'POST', body: fd }); }
         toast('Saved'); go('bns');
       } catch (e) { er.textContent = e.message; sb.disabled = false; }
